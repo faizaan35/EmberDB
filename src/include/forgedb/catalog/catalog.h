@@ -1,7 +1,8 @@
-﻿#pragma once
+#pragma once
 
 #include "forgedb/catalog/schema.h"
 #include "forgedb/storage/disk/disk_manager.h"
+#include "forgedb/storage/buffer/buffer_pool_manager.h"
 #include "forgedb/storage/table/table.h"
 #include <string>
 #include <unordered_map>
@@ -17,6 +18,7 @@ constexpr page_id_t CATALOG_PAGE_ID = 0;
  */
 class Catalog {
 public:
+    explicit Catalog(BufferPoolManager* bpm);
     explicit Catalog(DiskManager* disk_mgr);
 
     Status Init();
@@ -28,9 +30,14 @@ public:
 
     Status PersistCatalog();
 
+    BufferPoolManager* GetBufferPoolManager() const { return bpm_; }
+    DiskManager* GetDiskManager() const { return disk_mgr_; }
+
 private:
     Status LoadCatalog();
 
+    std::unique_ptr<BufferPoolManager> owned_bpm_;
+    BufferPoolManager* bpm_;
     DiskManager* disk_mgr_;
     std::unordered_map<std::string, std::unique_ptr<Table>> tables_;
     std::vector<std::string> table_names_;

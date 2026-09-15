@@ -1,11 +1,17 @@
-﻿#include "forgedb/catalog/catalog.h"
+#include "forgedb/catalog/catalog.h"
 #include <cstring>
 
 namespace forgedb {
 
 static constexpr char CATALOG_MAGIC[16] = "FORGEDB_CATALOG";
 
-Catalog::Catalog(DiskManager* disk_mgr) : disk_mgr_(disk_mgr) {}
+Catalog::Catalog(BufferPoolManager* bpm)
+    : bpm_(bpm), disk_mgr_(bpm->GetDiskManager()) {}
+
+Catalog::Catalog(DiskManager* disk_mgr)
+    : owned_bpm_(std::make_unique<BufferPoolManager>(64, disk_mgr)),
+      bpm_(owned_bpm_.get()),
+      disk_mgr_(disk_mgr) {}
 
 Status Catalog::Init() {
     if (!disk_mgr_->IsOpen()) {
@@ -14,13 +20,16 @@ Status Catalog::Init() {
 
     if (disk_mgr_->GetNumPages() == 0) {
         // First initialization: allocate page 0 for catalog
-        auto alloc_res = disk_mgr_->AllocatePage();
-        if (!alloc_res.ok()) {
-            return alloc_res.status();
+        page_id_t cat_pid = INVALID_PAGE_ID;
+        Page* p = bpm_->NewPage(&cat_pid);
+        if (!p) {
+            return Status::IOError("Failed to allocate catalog page");
         }
-        if (*alloc_res != CATALOG_PAGE_ID) {
+        if (cat_pid != CATALOG_PAGE_ID) {
+            bpm_->UnpinPage(cat_pid, false);
             return Status::Corruption("Catalog page is not page 0");
         }
+        bpm_->UnpinPage(cat_pid, true);
         return PersistCatalog();
     }
 
@@ -29,8 +38,13 @@ Status Catalog::Init() {
 }
 
 Status Catalog::PersistCatalog() {
-    std::vector<char> page_buf(PAGE_SIZE, 0);
-    char* dest = page_buf.data();
+    Page* page = bpm_->FetchPage(CATALOG_PAGE_ID);
+    if (!page) {
+        return Status::IOError("Failed to fetch catalog page from buffer pool");
+    }
+
+    char* dest = page->GetData();
+    std::memset(dest, 0, PAGE_SIZE);
 
     // Write magic header
     std::memcpy(dest, CATALOG_MAGIC, sizeof(CATALOG_MAGIC));
@@ -51,7 +65,7 @@ Status Catalog::PersistCatalog() {
         std::memcpy(dest, name.data(), name_len);
         dest += name_len;
 
-        page_id_t first_p = tbl->GetFirstPageId();
+        page_id_t first_p = tbl->GetTableHeap()->GetFirstPageId();
         std::memcpy(dest, &first_p, sizeof(first_p));
         dest += sizeof(first_p);
 
@@ -59,21 +73,22 @@ Status Catalog::PersistCatalog() {
         dest += tbl->GetSchema().GetSerializedSize();
     }
 
-    auto status = disk_mgr_->WritePage(CATALOG_PAGE_ID, page_buf.data());
-    if (!status.ok()) return status;
-    return disk_mgr_->Flush();
+    bpm_->UnpinPage(CATALOG_PAGE_ID, true);
+    bpm_->FlushPage(CATALOG_PAGE_ID);
+    return Status::OK();
 }
 
 Status Catalog::LoadCatalog() {
-    std::vector<char> page_buf(PAGE_SIZE);
-    auto status = disk_mgr_->ReadPage(CATALOG_PAGE_ID, page_buf.data());
-    if (!status.ok()) return status;
+    Page* page = bpm_->FetchPage(CATALOG_PAGE_ID);
+    if (!page) {
+        return Status::IOError("Failed to fetch catalog page from buffer pool");
+    }
 
-    const char* src = page_buf.data();
+    const char* src = page->GetData();
 
-    // Check magic
     if (std::memcmp(src, CATALOG_MAGIC, sizeof(CATALOG_MAGIC)) != 0) {
-        return Status::Corruption("Invalid catalog page header magic");
+        bpm_->UnpinPage(CATALOG_PAGE_ID, false);
+        return Status::Corruption("Invalid catalog page magic header");
     }
     src += sizeof(CATALOG_MAGIC);
 
@@ -100,7 +115,7 @@ Status Catalog::LoadCatalog() {
         Schema schema = Schema::DeserializeFrom(src, schema_bytes);
         src += schema_bytes;
 
-        auto table_heap = std::make_unique<TableHeap>(disk_mgr_, first_p);
+        auto table_heap = std::make_unique<TableHeap>(bpm_, first_p);
         table_heap->SetOnFirstPageAllocated([this](page_id_t) {
             PersistCatalog();
         });
@@ -108,6 +123,7 @@ Status Catalog::LoadCatalog() {
         table_names_.push_back(name);
     }
 
+    bpm_->UnpinPage(CATALOG_PAGE_ID, false);
     return Status::OK();
 }
 
@@ -116,7 +132,7 @@ Result<Table*> Catalog::CreateTable(const std::string& name, const Schema& schem
         return Status::AlreadyExists("Table already exists: " + name);
     }
 
-    auto table_heap = std::make_unique<TableHeap>(disk_mgr_, INVALID_PAGE_ID);
+    auto table_heap = std::make_unique<TableHeap>(bpm_, INVALID_PAGE_ID);
     table_heap->SetOnFirstPageAllocated([this](page_id_t) {
         PersistCatalog();
     });

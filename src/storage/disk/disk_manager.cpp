@@ -1,4 +1,4 @@
-﻿#include "forgedb/storage/disk/disk_manager.h"
+#include "forgedb/storage/disk/disk_manager.h"
 #include <filesystem>
 #include <vector>
 
@@ -46,6 +46,9 @@ Status DiskManager::Open() {
 }
 
 Status DiskManager::Close() {
+    if (flush_hook_) {
+        flush_hook_();
+    }
     std::lock_guard<std::mutex> lock(db_io_latch_);
     if (!is_open_) {
         return Status::OK();
@@ -122,6 +125,9 @@ Status DiskManager::WritePage(page_id_t page_id, const char* page_data) {
 }
 
 Status DiskManager::Flush() {
+    if (flush_hook_) {
+        flush_hook_();
+    }
     std::lock_guard<std::mutex> lock(db_io_latch_);
     if (!is_open_) {
         return Status::IOError("Database file is not open");

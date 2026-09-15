@@ -8,6 +8,8 @@ add_library(forgedb_core STATIC
     storage/page/page.cpp
     storage/page/slotted_page.cpp
     storage/disk/disk_manager.cpp
+    storage/buffer/lru_replacer.cpp
+    storage/buffer/buffer_pool_manager.cpp
     storage/record/record.cpp
     storage/table/table_heap.cpp
     sql/lexer/token.cpp

@@ -1,10 +1,11 @@
-﻿#pragma once
+#pragma once
 
 #include "forgedb/common/config.h"
 #include "forgedb/common/status.h"
 #include <string>
 #include <fstream>
 #include <mutex>
+#include <functional>
 
 namespace forgedb {
 
@@ -33,12 +34,15 @@ public:
     size_t GetNumPages() const;
     const std::string& GetFileName() const { return db_file_; }
 
+    void SetFlushHook(std::function<void()> hook) { flush_hook_ = std::move(hook); }
+
 private:
     std::string db_file_;
     std::fstream db_io_;
     bool is_open_{false};
     mutable std::mutex db_io_latch_;
     size_t num_pages_{0};
+    std::function<void()> flush_hook_;
 };
 
 } // namespace forgedb

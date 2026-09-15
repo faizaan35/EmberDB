@@ -15,7 +15,7 @@ This document tracks progress across all implementation phases of **ForgeDB** as
 | **Phase 4** | Basic Query Execution | **COMPLETE** | **PASSED** |
 | **Phase 5** | Query Features (ORDER BY, LIMIT, Aggregates, GROUP BY) | **COMPLETE** | **PASSED** |
 | **Phase 6** | JOINs (Nested Loop Join, INNER / LEFT) | **COMPLETE** | **PASSED** |
-| **Phase 7** | Buffer Pool (LRU, Pin/Unpin, Dirty Tracking) | IN PROGRESS | NOT STARTED |
+| **Phase 7** | Buffer Pool (LRU, Pin/Unpin, Dirty Tracking) | **COMPLETE** | **PASSED** |
 | **Phase 8** | B+ Tree Index (Search, Insert, Split, Range Scan) | PENDING | NOT STARTED |
 | **Phase 9** | Query Planner + Index Scan | PENDING | NOT STARTED |
 | **Phase 10** | Transactions (BEGIN, COMMIT, ROLLBACK) | PENDING | NOT STARTED |
@@ -105,3 +105,21 @@ This document tracks progress across all implementation phases of **ForgeDB** as
 * **Build Command**: `cmake --build build --config Debug`
 * **Test Command**: `.\build\bin\forgedb_tests.exe`
 * **Test Results**: 24 test cases, 1405 assertions passed, 0 failures.
+
+### Phase 7 — Buffer Pool (LRU, Pin/Unpin, Dirty Tracking)
+* **Status**: **COMPLETE**
+* **Completion Gate**: **PASSED**
+  * All Phase 7 gate scenarios verified:
+    - LRU eviction policy with pinned/unpinned frame management.
+    - Buffer pool page allocation, fetching, dirty page tracking, and evictions.
+    - Buffer pool smaller than total database pages: 150 records across 6 pages accessed through a tiny 3-frame buffer pool without corruption.
+    - Persistence across restart with 100% bit-exact tuple verification.
+  * All 27 test cases (2045 assertions) passed with zero errors.
+* **What was Implemented**:
+  * `Replacer` & `LRUReplacer`: Thread-safe LRU eviction queue tracking unpinned frame IDs.
+  * `BufferPoolManager`: Manages in-memory `Page` frames, hash table page directory, dirty tracking, eviction, and disk I/O coordination.
+  * `TableHeap` & `Catalog` integration: Unified storage layer where relation data and catalog metadata route through the buffer pool.
+  * Automatic flush coordination: Flush hooks in `DiskManager` ensure dirty pages are flushed prior to closing.
+* **Build Command**: `cmake --build build --config Debug`
+* **Test Command**: `.\build\bin\forgedb_tests.exe`
+* **Test Results**: 27 test cases, 2045 assertions passed, 0 failures.

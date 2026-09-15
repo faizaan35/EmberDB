@@ -1,6 +1,7 @@
-﻿#pragma once
+#pragma once
 
 #include "forgedb/storage/disk/disk_manager.h"
+#include "forgedb/storage/buffer/buffer_pool_manager.h"
 #include "forgedb/storage/page/slotted_page.h"
 #include "forgedb/storage/record/record.h"
 #include <memory>
@@ -15,6 +16,7 @@ class TableIterator;
  */
 class TableHeap {
 public:
+    explicit TableHeap(BufferPoolManager* bpm, page_id_t first_page_id = INVALID_PAGE_ID);
     explicit TableHeap(DiskManager* disk_mgr, page_id_t first_page_id = INVALID_PAGE_ID);
 
     Status InsertRecord(Record& record);
@@ -24,6 +26,7 @@ public:
 
     page_id_t GetFirstPageId() const { return first_page_id_; }
     DiskManager* GetDiskManager() const { return disk_mgr_; }
+    BufferPoolManager* GetBufferPoolManager() const { return bpm_; }
 
     void SetOnFirstPageAllocated(std::function<void(page_id_t)> cb) {
         on_first_page_allocated_ = std::move(cb);
@@ -33,6 +36,8 @@ public:
     TableIterator End();
 
 private:
+    std::unique_ptr<BufferPoolManager> owned_bpm_;
+    BufferPoolManager* bpm_;
     DiskManager* disk_mgr_;
     page_id_t first_page_id_{INVALID_PAGE_ID};
     page_id_t last_page_id_{INVALID_PAGE_ID};
