@@ -1,4 +1,4 @@
-﻿#include "forgedb/execution/expressions/expression_evaluator.h"
+#include "forgedb/execution/expressions/expression_evaluator.h"
 #include <stdexcept>
 
 namespace forgedb {
@@ -18,8 +18,11 @@ Value ExpressionEvaluator::Evaluate(const Expression* expr, const Record* record
                 throw std::runtime_error("Cannot evaluate column reference without record and schema");
             }
             const auto* col_ref = dynamic_cast<const ColumnRefExpression*>(expr);
-            const std::string& col_name = col_ref->GetColumnName();
-            uint32_t col_idx = schema->GetColIdx(col_name);
+            std::string col_lookup = col_ref->GetColumnName();
+            if (!col_ref->GetTableName().empty()) {
+                col_lookup = col_ref->GetTableName() + "." + col_ref->GetColumnName();
+            }
+            uint32_t col_idx = schema->GetColIdx(col_lookup);
             return record->GetValue(*schema, col_idx);
         }
         case ExpressionType::BINARY_OP: {

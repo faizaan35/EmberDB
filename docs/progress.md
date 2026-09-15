@@ -14,8 +14,8 @@ This document tracks progress across all implementation phases of **ForgeDB** as
 | **Phase 3** | SQL Lexer + Parser | **COMPLETE** | **PASSED** |
 | **Phase 4** | Basic Query Execution | **COMPLETE** | **PASSED** |
 | **Phase 5** | Query Features (ORDER BY, LIMIT, Aggregates, GROUP BY) | **COMPLETE** | **PASSED** |
-| **Phase 6** | JOINs (Nested Loop Join, INNER / LEFT) | IN PROGRESS | NOT STARTED |
-| **Phase 7** | Buffer Pool (LRU, Pin/Unpin, Dirty Tracking) | PENDING | NOT STARTED |
+| **Phase 6** | JOINs (Nested Loop Join, INNER / LEFT) | **COMPLETE** | **PASSED** |
+| **Phase 7** | Buffer Pool (LRU, Pin/Unpin, Dirty Tracking) | IN PROGRESS | NOT STARTED |
 | **Phase 8** | B+ Tree Index (Search, Insert, Split, Range Scan) | PENDING | NOT STARTED |
 | **Phase 9** | Query Planner + Index Scan | PENDING | NOT STARTED |
 | **Phase 10** | Transactions (BEGIN, COMMIT, ROLLBACK) | PENDING | NOT STARTED |
@@ -82,3 +82,26 @@ This document tracks progress across all implementation phases of **ForgeDB** as
 * **Build Command**: `cmake --build build --config Debug`
 * **Test Command**: `.\build\bin\forgedb_tests.exe`
 * **Test Results**: 23 test cases, 1272 assertions passed, 0 failures.
+
+### Phase 6 — JOINs (Nested Loop Join, INNER / LEFT)
+* **Status**: **COMPLETE**
+* **Completion Gate**: **PASSED**
+  * All Phase 6 gate scenarios verified:
+    - Matching rows (INNER JOIN)
+    - No matching rows (false predicate)
+    - Multiple matches per outer row
+    - LEFT JOIN with unmatched rows generating NULLs
+    - JOIN + WHERE filter
+    - JOIN + projection of qualified column names
+    - JOIN + ORDER BY
+    - JOIN + LIMIT
+    - Multi-table 3-way join composition
+  * All 24 test cases (1405 assertions) passed with zero errors.
+* **What was Implemented**:
+  * `FilterExecutor`: General-purpose Volcano predicate evaluation filter.
+  * `NestedLoopJoinExecutor`: Inner & Left outer joins with Volcano iterator semantics and proper inner loop rewind.
+  * Schema & Expression resolution: Suffix and prefix resolution in `Schema::GetColIdx` with ambiguity detection and support for `table.column` qualified references.
+  * `ExecutionEngine` join pipeline: Automatic schema synthesis, multi-join chaining, and filter execution.
+* **Build Command**: `cmake --build build --config Debug`
+* **Test Command**: `.\build\bin\forgedb_tests.exe`
+* **Test Results**: 24 test cases, 1405 assertions passed, 0 failures.

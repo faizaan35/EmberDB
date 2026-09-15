@@ -1,4 +1,4 @@
-﻿#include "forgedb/catalog/schema.h"
+#include "forgedb/catalog/schema.h"
 
 namespace forgedb {
 
@@ -17,14 +17,50 @@ const Column& Schema::GetColumn(uint32_t col_idx) const {
 
 uint32_t Schema::GetColIdx(const std::string& col_name) const {
     auto it = name_to_idx_.find(col_name);
-    if (it == name_to_idx_.end()) {
-        throw std::runtime_error("Column not found in schema: " + col_name);
+    if (it != name_to_idx_.end()) {
+        return it->second;
     }
-    return it->second;
+
+    size_t dot_pos = col_name.find('.');
+    if (dot_pos == std::string::npos) {
+        // Unqualified name, look for unique suffix match (e.g. "age" matching "users.age")
+        std::string suffix = "." + col_name;
+        int found_idx = -1;
+        int match_count = 0;
+        for (size_t i = 0; i < columns_.size(); ++i) {
+            const std::string& cname = columns_[i].GetName();
+            if (cname == col_name ||
+                (cname.size() > suffix.size() &&
+                 cname.compare(cname.size() - suffix.size(), suffix.size(), suffix) == 0)) {
+                found_idx = static_cast<int>(i);
+                match_count++;
+            }
+        }
+        if (match_count == 1) {
+            return static_cast<uint32_t>(found_idx);
+        }
+        if (match_count > 1) {
+            throw std::runtime_error("Ambiguous column reference: " + col_name);
+        }
+    } else {
+        // Qualified name like "users.age", check if columns_ has unqualified "age"
+        std::string unqualified = col_name.substr(dot_pos + 1);
+        auto it_unq = name_to_idx_.find(unqualified);
+        if (it_unq != name_to_idx_.end()) {
+            return it_unq->second;
+        }
+    }
+
+    throw std::runtime_error("Column not found in schema: " + col_name);
 }
 
 bool Schema::HasColumn(const std::string& col_name) const {
-    return name_to_idx_.find(col_name) != name_to_idx_.end();
+    try {
+        GetColIdx(col_name);
+        return true;
+    } catch (...) {
+        return false;
+    }
 }
 
 std::string Schema::ToString() const {

@@ -20,6 +20,8 @@ add_library(forgedb_core STATIC
     execution/executor/sort_executor.cpp
     execution/executor/limit_executor.cpp
     execution/executor/aggregate_executor.cpp
+    execution/executor/filter_executor.cpp
+    execution/executor/nested_loop_join_executor.cpp
     execution/executor/execution_engine.cpp
 )
 

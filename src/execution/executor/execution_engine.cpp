@@ -1,9 +1,11 @@
-﻿#include "forgedb/execution/executor/execution_engine.h"
+#include "forgedb/execution/executor/execution_engine.h"
 #include "forgedb/execution/executor/seq_scan_executor.h"
 #include "forgedb/execution/executor/projection_executor.h"
 #include "forgedb/execution/executor/sort_executor.h"
 #include "forgedb/execution/executor/limit_executor.h"
 #include "forgedb/execution/executor/aggregate_executor.h"
+#include "forgedb/execution/executor/filter_executor.h"
+#include "forgedb/execution/executor/nested_loop_join_executor.h"
 #include "forgedb/execution/expressions/expression_evaluator.h"
 #include <iomanip>
 #include <sstream>
@@ -138,7 +140,65 @@ QueryResult ExecutionEngine::ExecuteSelect(const SelectStatement* stmt) {
         return QueryResult{false, "Table not found: " + stmt->GetFromTable(), {}, {}, 0, 0.0};
     }
 
-    // 1. Check if aggregation is involved
+    // 1. Base scan and joins setup
+    std::unique_ptr<SeqScanExecutor> base_scan;
+    std::vector<std::unique_ptr<SeqScanExecutor>> join_scans;
+    std::vector<std::unique_ptr<NestedLoopJoinExecutor>> join_execs;
+    std::unique_ptr<FilterExecutor> filter_exec;
+
+    AbstractExecutor* current_head = nullptr;
+
+    if (stmt->GetJoins().empty()) {
+        base_scan = std::make_unique<SeqScanExecutor>(table, stmt->GetWhereClause());
+        current_head = base_scan.get();
+    } else {
+        // Build table-qualified schema for left table
+        std::vector<Column> left_cols;
+        for (const auto& col : table->GetSchema().GetColumns()) {
+            left_cols.emplace_back(stmt->GetFromTable() + "." + col.GetName(), col.GetType(), col.GetLength(), col.IsNullable());
+        }
+        Schema left_schema(std::move(left_cols));
+        base_scan = std::make_unique<SeqScanExecutor>(table, nullptr, std::move(left_schema));
+        current_head = base_scan.get();
+
+        for (const auto& join_def : stmt->GetJoins()) {
+            Table* right_table = catalog_->GetTable(join_def.table_name);
+            if (!right_table) {
+                return QueryResult{false, "Table not found in JOIN: " + join_def.table_name, {}, {}, 0, 0.0};
+            }
+            std::vector<Column> right_cols;
+            for (const auto& col : right_table->GetSchema().GetColumns()) {
+                right_cols.emplace_back(join_def.table_name + "." + col.GetName(), col.GetType(), col.GetLength(), col.IsNullable());
+            }
+            Schema right_schema(std::move(right_cols));
+            auto right_scan = std::make_unique<SeqScanExecutor>(right_table, nullptr, std::move(right_schema));
+
+            // Combined output schema
+            std::vector<Column> joined_cols;
+            for (const auto& c : current_head->GetOutputSchema().GetColumns()) {
+                joined_cols.push_back(c);
+            }
+            for (const auto& c : right_scan->GetOutputSchema().GetColumns()) {
+                joined_cols.push_back(c);
+            }
+            Schema joined_schema(std::move(joined_cols));
+
+            auto join_exec = std::make_unique<NestedLoopJoinExecutor>(
+                current_head, right_scan.get(), join_def.type, join_def.on_condition.get(), std::move(joined_schema));
+
+            current_head = join_exec.get();
+            join_scans.push_back(std::move(right_scan));
+            join_execs.push_back(std::move(join_exec));
+        }
+
+        // Apply WHERE filter after joins if present
+        if (stmt->GetWhereClause()) {
+            filter_exec = std::make_unique<FilterExecutor>(current_head, stmt->GetWhereClause());
+            current_head = filter_exec.get();
+        }
+    }
+
+    // 2. Check if aggregation is involved
     bool has_aggregation = !stmt->GetGroupBy().empty();
     if (!has_aggregation) {
         for (const auto& expr : stmt->GetSelectList()) {
@@ -148,10 +208,6 @@ QueryResult ExecutionEngine::ExecuteSelect(const SelectStatement* stmt) {
             }
         }
     }
-
-    // Base scan executor
-    auto scan = std::make_unique<SeqScanExecutor>(table, stmt->GetWhereClause());
-    AbstractExecutor* current_head = scan.get();
 
     // Storage for intermediate executors
     std::unique_ptr<AggregateExecutor> agg_exec;
@@ -172,8 +228,12 @@ QueryResult ExecutionEngine::ExecuteSelect(const SelectStatement* stmt) {
         for (const auto* ge : group_by_exprs) {
             if (ge->GetType() == ExpressionType::COLUMN_REF) {
                 const auto* cr = dynamic_cast<const ColumnRefExpression*>(ge);
-                uint32_t cidx = table->GetSchema().GetColIdx(cr->GetColumnName());
-                agg_out_cols.push_back(table->GetSchema().GetColumn(cidx));
+                std::string col_lookup = cr->GetColumnName();
+                if (!cr->GetTableName().empty()) {
+                    col_lookup = cr->GetTableName() + "." + cr->GetColumnName();
+                }
+                uint32_t cidx = current_head->GetOutputSchema().GetColIdx(col_lookup);
+                agg_out_cols.push_back(current_head->GetOutputSchema().GetColumn(cidx));
             } else {
                 agg_out_cols.emplace_back(ge->ToString(), TypeId::VARCHAR, 255);
             }
@@ -201,17 +261,16 @@ QueryResult ExecutionEngine::ExecuteSelect(const SelectStatement* stmt) {
                 } else if (fname == "AVG") {
                     atype = AggregateType::AVG;
                     rtype = TypeId::DOUBLE;
-                } else if (fname == "MIN") {
-                    atype = AggregateType::MIN;
+                } else if (fname == "MIN" || fname == "MAX") {
+                    atype = (fname == "MIN") ? AggregateType::MIN : AggregateType::MAX;
                     if (!fc->GetArgs().empty() && fc->GetArgs()[0]->GetType() == ExpressionType::COLUMN_REF) {
                         auto* cr = dynamic_cast<const ColumnRefExpression*>(fc->GetArgs()[0].get());
-                        rtype = table->GetSchema().GetColumn(table->GetSchema().GetColIdx(cr->GetColumnName())).GetType();
-                    }
-                } else if (fname == "MAX") {
-                    atype = AggregateType::MAX;
-                    if (!fc->GetArgs().empty() && fc->GetArgs()[0]->GetType() == ExpressionType::COLUMN_REF) {
-                        auto* cr = dynamic_cast<const ColumnRefExpression*>(fc->GetArgs()[0].get());
-                        rtype = table->GetSchema().GetColumn(table->GetSchema().GetColIdx(cr->GetColumnName())).GetType();
+                        std::string col_lookup = cr->GetColumnName();
+                        if (!cr->GetTableName().empty()) {
+                            col_lookup = cr->GetTableName() + "." + cr->GetColumnName();
+                        }
+                        uint32_t cidx = current_head->GetOutputSchema().GetColIdx(col_lookup);
+                        rtype = current_head->GetOutputSchema().GetColumn(cidx).GetType();
                     }
                 }
 
@@ -230,8 +289,12 @@ QueryResult ExecutionEngine::ExecuteSelect(const SelectStatement* stmt) {
     if (!stmt->GetOrderBy().empty()) {
         std::vector<OrderByDef> order_by_copy;
         for (const auto& ob : stmt->GetOrderBy()) {
-            // Check if ordering by a column or expression
-            order_by_copy.push_back({std::make_unique<ColumnRefExpression>(ob.expr->ToString()), ob.is_desc});
+            if (ob.expr->GetType() == ExpressionType::COLUMN_REF) {
+                const auto* cr = dynamic_cast<const ColumnRefExpression*>(ob.expr.get());
+                order_by_copy.push_back({std::make_unique<ColumnRefExpression>(cr->GetColumnName(), cr->GetTableName()), ob.is_desc});
+            } else {
+                order_by_copy.push_back({std::make_unique<ColumnRefExpression>(ob.expr->ToString()), ob.is_desc});
+            }
         }
         sort_exec = std::make_unique<SortExecutor>(current_head, std::move(order_by_copy));
         current_head = sort_exec.get();
@@ -255,8 +318,12 @@ QueryResult ExecutionEngine::ExecuteSelect(const SelectStatement* stmt) {
             proj_exprs.push_back(expr.get());
             if (expr->GetType() == ExpressionType::COLUMN_REF) {
                 const auto* col_ref = dynamic_cast<const ColumnRefExpression*>(expr.get());
-                uint32_t col_idx = table->GetSchema().GetColIdx(col_ref->GetColumnName());
-                proj_cols.push_back(table->GetSchema().GetColumn(col_idx));
+                std::string col_lookup = col_ref->GetColumnName();
+                if (!col_ref->GetTableName().empty()) {
+                    col_lookup = col_ref->GetTableName() + "." + col_ref->GetColumnName();
+                }
+                uint32_t col_idx = current_head->GetOutputSchema().GetColIdx(col_lookup);
+                proj_cols.push_back(current_head->GetOutputSchema().GetColumn(col_idx));
             } else {
                 proj_cols.emplace_back(expr->ToString(), TypeId::VARCHAR, 255);
             }

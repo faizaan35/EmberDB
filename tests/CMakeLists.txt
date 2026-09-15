@@ -13,6 +13,7 @@ add_executable(forgedb_tests
     sql/parser_test.cpp
     execution/execution_engine_test.cpp
     execution/query_features_test.cpp
+    execution/join_test.cpp
 )
 
 target_include_directories(forgedb_tests
