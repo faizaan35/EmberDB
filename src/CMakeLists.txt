@@ -14,6 +14,10 @@ add_library(forgedb_core STATIC
     sql/lexer/lexer.cpp
     sql/ast/ast.cpp
     sql/parser/parser.cpp
+    execution/expressions/expression_evaluator.cpp
+    execution/executor/seq_scan_executor.cpp
+    execution/executor/projection_executor.cpp
+    execution/executor/execution_engine.cpp
 )
 
 target_include_directories(forgedb_core

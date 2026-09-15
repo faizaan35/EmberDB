@@ -11,6 +11,7 @@
     integration/table_persistence_test.cpp
     sql/lexer_test.cpp
     sql/parser_test.cpp
+    execution/execution_engine_test.cpp
 )
 
 target_include_directories(forgedb_tests

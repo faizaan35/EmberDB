@@ -12,8 +12,8 @@ This document tracks progress across all implementation phases of **ForgeDB** as
 | **Phase 1** | Basic Types + Pages + Disk Manager | **COMPLETE** | **PASSED** |
 | **Phase 2** | Records + Tables + Catalog | **COMPLETE** | **PASSED** |
 | **Phase 3** | SQL Lexer + Parser | **COMPLETE** | **PASSED** |
-| **Phase 4** | Basic Query Execution | IN PROGRESS | NOT STARTED |
-| **Phase 5** | Query Features (ORDER BY, LIMIT, Aggregates, GROUP BY) | PENDING | NOT STARTED |
+| **Phase 4** | Basic Query Execution | **COMPLETE** | **PASSED** |
+| **Phase 5** | Query Features (ORDER BY, LIMIT, Aggregates, GROUP BY) | IN PROGRESS | NOT STARTED |
 | **Phase 6** | JOINs (Nested Loop Join, INNER / LEFT) | PENDING | NOT STARTED |
 | **Phase 7** | Buffer Pool (LRU, Pin/Unpin, Dirty Tracking) | PENDING | NOT STARTED |
 | **Phase 8** | B+ Tree Index (Search, Insert, Split, Range Scan) | PENDING | NOT STARTED |
@@ -46,16 +46,24 @@ This document tracks progress across all implementation phases of **ForgeDB** as
 
 ### Phase 3 — SQL Lexer + Parser
 * **Status**: **COMPLETE**
+* **Completion Gate**: **PASSED** (Full statement AST parsing and error diagnostics verified)
+
+### Phase 4 — Basic Query Execution
+* **Status**: **COMPLETE**
 * **Completion Gate**: **PASSED**
-  * Full statement parsing verified: `CREATE TABLE`, `DROP TABLE`, `CREATE INDEX`, `INSERT`, `SELECT`, `UPDATE`, `DELETE`, `BEGIN`, `COMMIT`, `ROLLBACK`.
-  * Precedence climbing expression parser verified (comparisons, arithmetic, logical operators).
-  * Syntax error diagnostics verified with informative error messages.
-  * All previous tests preserved and passed (1145 assertions in 19 test cases).
+  * Exact CLI gate script tested and verified end-to-end:
+    - `CREATE TABLE users (id INT, name VARCHAR, age INT);`
+    - `INSERT INTO users VALUES (1, 'Faizaan', 23);`
+    - `SELECT * FROM users;` -> verified row `(1, 'Faizaan', 23)`
+    - `SELECT name FROM users WHERE age > 20;` -> verified row `('Faizaan')`
+    - `UPDATE users SET age = 24 WHERE id = 1;` -> 1 row updated, verified `age == 24`
+    - `DELETE FROM users WHERE id = 1;` -> 1 row deleted, verified 0 rows remaining
+  * All previous tests preserved and passed (1179 assertions in 20 test cases).
 * **What was Implemented**:
-  * `Token` and `TokenType` definitions with string representations.
-  * `Lexer`: Case-insensitive keywords, numbers, string literals with escape handling, comments, and operator tokenization.
-  * AST: Expression nodes (`Literal`, `ColumnRef`, `Binary`, `Unary`, `FunctionCall`, `Star`) and Statement nodes (`CreateTable`, `DropTable`, `CreateIndex`, `Insert`, `Select`, `Update`, `Delete`, `Transaction`).
-  * `Parser`: Recursive descent parser converting token streams into AST representation.
+  * `ExpressionEvaluator`: Evaluates AST expressions (literals, column refs, arithmetic, comparisons, logical AND/OR/NOT).
+  * Volcano iterator architecture: `AbstractExecutor`, `SeqScanExecutor`, `ProjectionExecutor`.
+  * `ExecutionEngine`: Dispatches statements to executors and formats ASCII result tables.
+  * Interactive CLI: Integrated execution engine, supporting multi-line SQL input and schema introspection meta-commands (`.tables`, `.schema`).
 * **Build Command**: `cmake --build build --config Debug`
 * **Test Command**: `ctest --test-dir build --output-on-failure` & `.\build\bin\forgedb_tests.exe`
-* **Test Results**: 19 test cases, 1145 assertions passed, 0 failures.
+* **Test Results**: 20 test cases, 1179 assertions passed, 0 failures.

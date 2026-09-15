@@ -1,9 +1,14 @@
 ﻿#include <iostream>
 #include <string>
 #include <vector>
+#include <filesystem>
 #include "forgedb/common/config.h"
 #include "forgedb/common/status.h"
-#include "forgedb/forgedb.h"
+#include "forgedb/storage/disk/disk_manager.h"
+#include "forgedb/catalog/catalog.h"
+#include "forgedb/sql/lexer/lexer.h"
+#include "forgedb/sql/parser/parser.h"
+#include "forgedb/execution/executor/execution_engine.h"
 
 void PrintBanner() {
     std::cout << "========================================" << std::endl;
@@ -22,23 +27,41 @@ void PrintHelp() {
     std::cout << "\nMeta Commands:" << std::endl;
     std::cout << "  .help            Show available meta commands" << std::endl;
     std::cout << "  .version         Show engine version" << std::endl;
+    std::cout << "  .tables          List all database tables" << std::endl;
+    std::cout << "  .schema [table]  Show table schema" << std::endl;
     std::cout << "  .exit, .quit     Exit the shell" << std::endl;
 }
 
 void RunRepl(const std::string& db_path) {
-    forgedb::ForgeDBInstance db(db_path);
-    auto status = db.Open();
-    if (!status.ok()) {
-        std::cerr << "Failed to open database: " << status.ToString() << std::endl;
+    forgedb::DiskManager disk_mgr(db_path);
+    auto open_status = disk_mgr.Open();
+    if (!open_status.ok()) {
+        std::cerr << "Failed to open database file: " << open_status.ToString() << std::endl;
         return;
     }
+
+    forgedb::Catalog catalog(&disk_mgr);
+    auto cat_status = catalog.Init();
+    if (!cat_status.ok()) {
+        std::cerr << "Failed to initialize database catalog: " << cat_status.ToString() << std::endl;
+        return;
+    }
+
+    forgedb::ExecutionEngine engine(&catalog);
 
     PrintBanner();
     std::cout << "Connected to database at: " << db_path << "\n" << std::endl;
 
     std::string line;
+    std::string sql_buffer;
+
     while (true) {
-        std::cout << "ForgeDB> ";
+        if (sql_buffer.empty()) {
+            std::cout << "ForgeDB> ";
+        } else {
+            std::cout << "   ...> ";
+        }
+
         if (!std::getline(std::cin, line)) {
             std::cout << "\nExiting ForgeDB." << std::endl;
             break;
@@ -50,23 +73,74 @@ void RunRepl(const std::string& db_path) {
             continue;
         }
         size_t end = line.find_last_not_of(" \t\r\n");
-        std::string command = line.substr(start, end - start + 1);
+        std::string trimmed = line.substr(start, end - start + 1);
 
-        if (command == ".exit" || command == ".quit") {
-            std::cout << "Exiting ForgeDB." << std::endl;
-            break;
-        } else if (command == ".help") {
-            PrintHelp();
-        } else if (command == ".version") {
-            std::cout << "ForgeDB version " << forgedb::FORGEDB_VERSION << std::endl;
-        } else {
-            std::cout << "Unrecognized command: '" << command 
-                      << "'. (SQL execution will be available in Phase 4. Type .help for info)" 
-                      << std::endl;
+        if (sql_buffer.empty() && trimmed[0] == '.') {
+            // Handle meta-commands
+            if (trimmed == ".exit" || trimmed == ".quit") {
+                std::cout << "Exiting ForgeDB." << std::endl;
+                break;
+            } else if (trimmed == ".help") {
+                PrintHelp();
+            } else if (trimmed == ".version") {
+                std::cout << "ForgeDB version " << forgedb::FORGEDB_VERSION << std::endl;
+            } else if (trimmed == ".tables") {
+                auto tbl_names = catalog.GetAllTableNames();
+                if (tbl_names.empty()) {
+                    std::cout << "No tables found." << std::endl;
+                } else {
+                    for (const auto& name : tbl_names) {
+                        std::cout << "  " << name << std::endl;
+                    }
+                }
+            } else if (trimmed.rfind(".schema", 0) == 0) {
+                std::string tname;
+                if (trimmed.size() > 7) {
+                    size_t s = trimmed.find_first_not_of(" \t", 7);
+                    if (s != std::string::npos) tname = trimmed.substr(s);
+                }
+                if (tname.empty()) {
+                    for (const auto& name : catalog.GetAllTableNames()) {
+                        auto* tbl = catalog.GetTable(name);
+                        std::cout << "Table " << name << ": " << tbl->GetSchema().ToString() << std::endl;
+                    }
+                } else {
+                    auto* tbl = catalog.GetTable(tname);
+                    if (!tbl) {
+                        std::cout << "Table not found: " << tname << std::endl;
+                    } else {
+                        std::cout << tbl->GetSchema().ToString() << std::endl;
+                    }
+                }
+            } else {
+                std::cout << "Unknown command: '" << trimmed << "'. Type .help for available commands." << std::endl;
+            }
+            continue;
+        }
+
+        // Accumulate SQL lines until semicolon or EOF
+        if (!sql_buffer.empty()) {
+            sql_buffer += " ";
+        }
+        sql_buffer += trimmed;
+
+        if (sql_buffer.back() == ';') {
+            forgedb::Lexer lexer(sql_buffer);
+            auto tokens = lexer.Tokenize();
+            forgedb::Parser parser(std::move(tokens));
+            auto stmt_res = parser.Parse();
+
+            if (!stmt_res.ok()) {
+                std::cerr << stmt_res.status().ToString() << std::endl;
+            } else {
+                auto query_result = engine.Execute(stmt_res->get());
+                std::cout << query_result.FormatAsTable();
+            }
+            sql_buffer.clear();
         }
     }
 
-    db.Close();
+    disk_mgr.Close();
 }
 
 int main(int argc, char* argv[]) {
