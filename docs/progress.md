@@ -1,4 +1,4 @@
-﻿# ForgeDB — Implementation Progress Tracker
+# ForgeDB — Implementation Progress Tracker
 
 This document tracks progress across all implementation phases of **ForgeDB** as specified in `AGENTS.md`.
 
@@ -13,8 +13,8 @@ This document tracks progress across all implementation phases of **ForgeDB** as
 | **Phase 2** | Records + Tables + Catalog | **COMPLETE** | **PASSED** |
 | **Phase 3** | SQL Lexer + Parser | **COMPLETE** | **PASSED** |
 | **Phase 4** | Basic Query Execution | **COMPLETE** | **PASSED** |
-| **Phase 5** | Query Features (ORDER BY, LIMIT, Aggregates, GROUP BY) | IN PROGRESS | NOT STARTED |
-| **Phase 6** | JOINs (Nested Loop Join, INNER / LEFT) | PENDING | NOT STARTED |
+| **Phase 5** | Query Features (ORDER BY, LIMIT, Aggregates, GROUP BY) | **COMPLETE** | **PASSED** |
+| **Phase 6** | JOINs (Nested Loop Join, INNER / LEFT) | IN PROGRESS | NOT STARTED |
 | **Phase 7** | Buffer Pool (LRU, Pin/Unpin, Dirty Tracking) | PENDING | NOT STARTED |
 | **Phase 8** | B+ Tree Index (Search, Insert, Split, Range Scan) | PENDING | NOT STARTED |
 | **Phase 9** | Query Planner + Index Scan | PENDING | NOT STARTED |
@@ -67,3 +67,18 @@ This document tracks progress across all implementation phases of **ForgeDB** as
 * **Build Command**: `cmake --build build --config Debug`
 * **Test Command**: `ctest --test-dir build --output-on-failure` & `.\build\bin\forgedb_tests.exe`
 * **Test Results**: 20 test cases, 1179 assertions passed, 0 failures.
+
+### Phase 5 — Query Features (ORDER BY, LIMIT, Aggregates, GROUP BY)
+* **Status**: **COMPLETE**
+* **Completion Gate**: **PASSED**
+  * Gate query: `SELECT age, COUNT(*) FROM users GROUP BY age ORDER BY age DESC LIMIT 5;` verified and tested end-to-end.
+  * Verified correct aggregation, sorting, grouping, and limit pagination.
+  * All 23 test cases (1272 assertions) passed.
+* **What was Implemented**:
+  * `SortExecutor`: ORDER BY ASC/DESC stable multi-expression sorting.
+  * `LimitExecutor`: LIMIT clause tuple capping.
+  * `AggregateExecutor`: COUNT(*), COUNT(col), SUM, AVG, MIN, MAX, with optional GROUP BY grouping hash-map.
+  * `ExecutionEngine` query pipeline integration: `SeqScan -> [Aggregate] -> [Sort] -> [Limit] -> [Projection]`.
+* **Build Command**: `cmake --build build --config Debug`
+* **Test Command**: `.\build\bin\forgedb_tests.exe`
+* **Test Results**: 23 test cases, 1272 assertions passed, 0 failures.

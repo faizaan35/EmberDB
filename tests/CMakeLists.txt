@@ -1,4 +1,4 @@
-﻿add_executable(forgedb_tests
+add_executable(forgedb_tests
     test_main.cpp
     unit/common_test.cpp
     unit/types_test.cpp
@@ -12,6 +12,7 @@
     sql/lexer_test.cpp
     sql/parser_test.cpp
     execution/execution_engine_test.cpp
+    execution/query_features_test.cpp
 )
 
 target_include_directories(forgedb_tests

@@ -1,9 +1,13 @@
 ﻿#include "forgedb/execution/executor/execution_engine.h"
 #include "forgedb/execution/executor/seq_scan_executor.h"
 #include "forgedb/execution/executor/projection_executor.h"
+#include "forgedb/execution/executor/sort_executor.h"
+#include "forgedb/execution/executor/limit_executor.h"
+#include "forgedb/execution/executor/aggregate_executor.h"
 #include "forgedb/execution/expressions/expression_evaluator.h"
 #include <iomanip>
 #include <sstream>
+#include <algorithm>
 
 namespace forgedb {
 
@@ -71,7 +75,6 @@ QueryResult ExecutionEngine::ExecuteDropTable(const DropTableStatement* stmt) {
     if (!catalog_->HasTable(stmt->GetTableName())) {
         return QueryResult{false, "Table not found: " + stmt->GetTableName(), {}, {}, 0, 0.0};
     }
-    // Drop table metadata
     return QueryResult{true, "", {}, {}, 0, 0.0};
 }
 
@@ -95,7 +98,6 @@ QueryResult ExecutionEngine::ExecuteInsert(const InsertStatement* stmt) {
         std::vector<Value> row_values;
 
         if (stmt->GetColumns().empty()) {
-            // Values mapped directly by position
             if (row_exprs.size() != schema.GetColumnCount()) {
                 return QueryResult{false, "Column count mismatch in INSERT: expected " +
                                            std::to_string(schema.GetColumnCount()) +
@@ -105,11 +107,9 @@ QueryResult ExecutionEngine::ExecuteInsert(const InsertStatement* stmt) {
                 row_values.push_back(ExpressionEvaluator::Evaluate(expr.get()));
             }
         } else {
-            // Values mapped by column name list
             if (row_exprs.size() != stmt->GetColumns().size()) {
                 return QueryResult{false, "Column count does not match values count in INSERT", {}, {}, 0, 0.0};
             }
-            // Initialize with NULLs
             row_values.resize(schema.GetColumnCount());
             for (size_t i = 0; i < schema.GetColumnCount(); ++i) {
                 row_values[i] = Value::Null(schema.GetColumn(i).GetType());
@@ -138,27 +138,116 @@ QueryResult ExecutionEngine::ExecuteSelect(const SelectStatement* stmt) {
         return QueryResult{false, "Table not found: " + stmt->GetFromTable(), {}, {}, 0, 0.0};
     }
 
-    SeqScanExecutor scan(table, stmt->GetWhereClause());
-    scan.Init();
-
-    std::vector<Record> results;
-    Schema output_schema;
-
-    bool is_star = (stmt->GetSelectList().size() == 1 &&
-                    stmt->GetSelectList()[0]->GetType() == ExpressionType::STAR);
-
-    if (is_star) {
-        output_schema = table->GetSchema();
-        Record rec;
-        RID rid;
-        while (scan.Next(&rec, &rid)) {
-            results.push_back(std::move(rec));
-            if (stmt->GetLimit().has_value() && results.size() >= static_cast<size_t>(stmt->GetLimit().value())) {
+    // 1. Check if aggregation is involved
+    bool has_aggregation = !stmt->GetGroupBy().empty();
+    if (!has_aggregation) {
+        for (const auto& expr : stmt->GetSelectList()) {
+            if (expr->GetType() == ExpressionType::FUNCTION_CALL) {
+                has_aggregation = true;
                 break;
             }
         }
-    } else {
-        // Build projected output schema
+    }
+
+    // Base scan executor
+    auto scan = std::make_unique<SeqScanExecutor>(table, stmt->GetWhereClause());
+    AbstractExecutor* current_head = scan.get();
+
+    // Storage for intermediate executors
+    std::unique_ptr<AggregateExecutor> agg_exec;
+    std::unique_ptr<SortExecutor> sort_exec;
+    std::unique_ptr<LimitExecutor> limit_exec;
+    std::unique_ptr<ProjectionExecutor> proj_exec;
+
+    if (has_aggregation) {
+        std::vector<const Expression*> group_by_exprs;
+        for (const auto& ge : stmt->GetGroupBy()) {
+            group_by_exprs.push_back(ge.get());
+        }
+
+        std::vector<AggregateDef> agg_defs;
+        std::vector<Column> agg_out_cols;
+
+        // Group by columns in output schema
+        for (const auto* ge : group_by_exprs) {
+            if (ge->GetType() == ExpressionType::COLUMN_REF) {
+                const auto* cr = dynamic_cast<const ColumnRefExpression*>(ge);
+                uint32_t cidx = table->GetSchema().GetColIdx(cr->GetColumnName());
+                agg_out_cols.push_back(table->GetSchema().GetColumn(cidx));
+            } else {
+                agg_out_cols.emplace_back(ge->ToString(), TypeId::VARCHAR, 255);
+            }
+        }
+
+        // Aggregate functions
+        for (const auto& expr : stmt->GetSelectList()) {
+            if (expr->GetType() == ExpressionType::FUNCTION_CALL) {
+                const auto* fc = dynamic_cast<const FunctionCallExpression*>(expr.get());
+                std::string fname = fc->GetFunctionName();
+
+                AggregateType atype = AggregateType::COUNT;
+                TypeId rtype = TypeId::BIGINT;
+
+                if (fname == "COUNT") {
+                    if (fc->GetArgs().empty() || fc->GetArgs()[0]->GetType() == ExpressionType::STAR) {
+                        atype = AggregateType::COUNT_STAR;
+                    } else {
+                        atype = AggregateType::COUNT;
+                    }
+                    rtype = TypeId::BIGINT;
+                } else if (fname == "SUM") {
+                    atype = AggregateType::SUM;
+                    rtype = TypeId::DOUBLE;
+                } else if (fname == "AVG") {
+                    atype = AggregateType::AVG;
+                    rtype = TypeId::DOUBLE;
+                } else if (fname == "MIN") {
+                    atype = AggregateType::MIN;
+                    if (!fc->GetArgs().empty() && fc->GetArgs()[0]->GetType() == ExpressionType::COLUMN_REF) {
+                        auto* cr = dynamic_cast<const ColumnRefExpression*>(fc->GetArgs()[0].get());
+                        rtype = table->GetSchema().GetColumn(table->GetSchema().GetColIdx(cr->GetColumnName())).GetType();
+                    }
+                } else if (fname == "MAX") {
+                    atype = AggregateType::MAX;
+                    if (!fc->GetArgs().empty() && fc->GetArgs()[0]->GetType() == ExpressionType::COLUMN_REF) {
+                        auto* cr = dynamic_cast<const ColumnRefExpression*>(fc->GetArgs()[0].get());
+                        rtype = table->GetSchema().GetColumn(table->GetSchema().GetColIdx(cr->GetColumnName())).GetType();
+                    }
+                }
+
+                const Expression* arg = fc->GetArgs().empty() ? nullptr : fc->GetArgs()[0].get();
+                agg_defs.push_back({atype, arg, fc->ToString()});
+                agg_out_cols.emplace_back(fc->ToString(), rtype);
+            }
+        }
+
+        Schema agg_schema(std::move(agg_out_cols));
+        agg_exec = std::make_unique<AggregateExecutor>(current_head, std::move(group_by_exprs), std::move(agg_defs), agg_schema);
+        current_head = agg_exec.get();
+    }
+
+    // Sort
+    if (!stmt->GetOrderBy().empty()) {
+        std::vector<OrderByDef> order_by_copy;
+        for (const auto& ob : stmt->GetOrderBy()) {
+            // Check if ordering by a column or expression
+            order_by_copy.push_back({std::make_unique<ColumnRefExpression>(ob.expr->ToString()), ob.is_desc});
+        }
+        sort_exec = std::make_unique<SortExecutor>(current_head, std::move(order_by_copy));
+        current_head = sort_exec.get();
+    }
+
+    // Limit
+    if (stmt->GetLimit().has_value()) {
+        limit_exec = std::make_unique<LimitExecutor>(current_head, static_cast<size_t>(stmt->GetLimit().value()));
+        current_head = limit_exec.get();
+    }
+
+    // Projection (if non-aggregation query has specific column projections or expressions)
+    bool is_star = (stmt->GetSelectList().size() == 1 &&
+                    stmt->GetSelectList()[0]->GetType() == ExpressionType::STAR);
+
+    if (!has_aggregation && !is_star) {
         std::vector<Column> proj_cols;
         std::vector<const Expression*> proj_exprs;
 
@@ -173,21 +262,22 @@ QueryResult ExecutionEngine::ExecuteSelect(const SelectStatement* stmt) {
             }
         }
 
-        output_schema = Schema(std::move(proj_cols));
-        ProjectionExecutor proj(&scan, std::move(proj_exprs), output_schema);
-        proj.Init();
-
-        Record rec;
-        RID rid;
-        while (proj.Next(&rec, &rid)) {
-            results.push_back(std::move(rec));
-            if (stmt->GetLimit().has_value() && results.size() >= static_cast<size_t>(stmt->GetLimit().value())) {
-                break;
-            }
-        }
+        Schema proj_schema(std::move(proj_cols));
+        proj_exec = std::make_unique<ProjectionExecutor>(current_head, std::move(proj_exprs), std::move(proj_schema));
+        current_head = proj_exec.get();
     }
 
-    return QueryResult{true, "", std::move(output_schema), std::move(results), 0, 0.0};
+    // Execute pipeline
+    current_head->Init();
+
+    std::vector<Record> results;
+    Record rec;
+    RID rid;
+    while (current_head->Next(&rec, &rid)) {
+        results.push_back(std::move(rec));
+    }
+
+    return QueryResult{true, "", current_head->GetOutputSchema(), std::move(results), 0, 0.0};
 }
 
 QueryResult ExecutionEngine::ExecuteUpdate(const UpdateStatement* stmt) {
@@ -198,7 +288,6 @@ QueryResult ExecutionEngine::ExecuteUpdate(const UpdateStatement* stmt) {
 
     const Schema& schema = table->GetSchema();
 
-    // First scan to collect records and RIDs to update
     SeqScanExecutor scan(table, stmt->GetWhereClause());
     scan.Init();
 
@@ -216,7 +305,6 @@ QueryResult ExecutionEngine::ExecuteUpdate(const UpdateStatement* stmt) {
 
         auto vals = current_record.GetValues(schema);
 
-        // Apply assignments
         for (const auto& assign : stmt->GetAssignments()) {
             uint32_t col_idx = schema.GetColIdx(assign.first);
             Value new_val = ExpressionEvaluator::Evaluate(assign.second.get(), &current_record, &schema);
@@ -284,7 +372,6 @@ std::string QueryResult::FormatAsTable() const {
         headers.push_back(std::move(h));
     }
 
-    // Extract all rows as string grids to calculate column widths
     std::vector<std::vector<std::string>> grid;
     grid.reserve(rows.size());
     for (const auto& row : rows) {
@@ -301,35 +388,30 @@ std::string QueryResult::FormatAsTable() const {
         grid.push_back(std::move(row_strs));
     }
 
-    // Minimum column width is 3
     for (auto& w : col_widths) {
         if (w < 3) w = 3;
     }
 
     std::ostringstream ss;
 
-    // Top border
     ss << "+";
     for (size_t w : col_widths) {
         ss << std::string(w + 2, '-') << "+";
     }
     ss << "\n";
 
-    // Header row
     ss << "|";
     for (size_t i = 0; i < headers.size(); ++i) {
         ss << " " << std::left << std::setw(static_cast<int>(col_widths[i])) << headers[i] << " |";
     }
     ss << "\n";
 
-    // Header separator
     ss << "+";
     for (size_t w : col_widths) {
         ss << std::string(w + 2, '-') << "+";
     }
     ss << "\n";
 
-    // Data rows
     for (const auto& row : grid) {
         ss << "|";
         for (size_t i = 0; i < row.size(); ++i) {
@@ -338,7 +420,6 @@ std::string QueryResult::FormatAsTable() const {
         ss << "\n";
     }
 
-    // Bottom border
     ss << "+";
     for (size_t w : col_widths) {
         ss << std::string(w + 2, '-') << "+";

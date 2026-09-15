@@ -1,4 +1,4 @@
-﻿# Core static library for database engine components
+# Core static library for database engine components
 add_library(forgedb_core STATIC
     common/status.cpp
     common/types.cpp
@@ -17,6 +17,9 @@ add_library(forgedb_core STATIC
     execution/expressions/expression_evaluator.cpp
     execution/executor/seq_scan_executor.cpp
     execution/executor/projection_executor.cpp
+    execution/executor/sort_executor.cpp
+    execution/executor/limit_executor.cpp
+    execution/executor/aggregate_executor.cpp
     execution/executor/execution_engine.cpp
 )
 
