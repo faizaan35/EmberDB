@@ -1,6 +1,6 @@
-﻿# ForgeDB SQL Specification
+﻿# EmberDB SQL Specification
 
-ForgeDB supports an intentional, clean subset of standard ANSI SQL tailored for relational systems engineering.
+EmberDB supports an intentional, clean subset of standard ANSI SQL tailored for relational systems engineering.
 
 ## 1. Supported Data Types
 

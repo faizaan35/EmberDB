@@ -1,8 +1,8 @@
-﻿#include "forgedb/execution/executor/sort_executor.h"
-#include "forgedb/execution/expressions/expression_evaluator.h"
+﻿#include "emberdb/execution/executor/sort_executor.h"
+#include "emberdb/execution/expressions/expression_evaluator.h"
 #include <algorithm>
 
-namespace forgedb {
+namespace emberdb {
 
 SortExecutor::SortExecutor(AbstractExecutor* child, std::vector<OrderByDef> order_by)
     : child_(child), order_by_(std::move(order_by)) {}
@@ -54,4 +54,4 @@ bool SortExecutor::Next(Record* record, RID* rid) {
     return false;
 }
 
-} // namespace forgedb
+} // namespace emberdb

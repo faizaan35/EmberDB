@@ -1,5 +1,5 @@
 ﻿#include <catch2/catch.hpp>
-#include "forgedb/storage/disk/disk_manager.h"
+#include "emberdb/storage/disk/disk_manager.h"
 #include <filesystem>
 #include <vector>
 #include <cstring>
@@ -11,7 +11,7 @@ TEST_CASE("DiskManager page operations and boundaries", "[storage]") {
     }
 
     {
-        forgedb::DiskManager disk_mgr(test_db_path);
+        emberdb::DiskManager disk_mgr(test_db_path);
         auto open_status = disk_mgr.Open();
         REQUIRE(open_status.ok());
         REQUIRE(disk_mgr.IsOpen());
@@ -29,21 +29,21 @@ TEST_CASE("DiskManager page operations and boundaries", "[storage]") {
         REQUIRE(disk_mgr.GetNumPages() == 2);
 
         // Write to page 0
-        std::vector<char> write_buf0(forgedb::PAGE_SIZE, 'A');
-        std::string header0 = "FORGEDB_PAGE_ZERO";
+        std::vector<char> write_buf0(emberdb::PAGE_SIZE, 'A');
+        std::string header0 = "EMBERDB_PAGE_ZERO";
         std::memcpy(write_buf0.data(), header0.data(), header0.size());
         auto write_status0 = disk_mgr.WritePage(0, write_buf0.data());
         REQUIRE(write_status0.ok());
 
         // Write to page 1
-        std::vector<char> write_buf1(forgedb::PAGE_SIZE, 'B');
-        std::string header1 = "FORGEDB_PAGE_ONE";
+        std::vector<char> write_buf1(emberdb::PAGE_SIZE, 'B');
+        std::string header1 = "EMBERDB_PAGE_ONE";
         std::memcpy(write_buf1.data(), header1.data(), header1.size());
         auto write_status1 = disk_mgr.WritePage(1, write_buf1.data());
         REQUIRE(write_status1.ok());
 
         // Out of bounds check
-        std::vector<char> out_buf(forgedb::PAGE_SIZE, 0);
+        std::vector<char> out_buf(emberdb::PAGE_SIZE, 0);
         auto oob_read = disk_mgr.ReadPage(99, out_buf.data());
         REQUIRE_FALSE(oob_read.ok());
 

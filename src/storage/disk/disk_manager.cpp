@@ -1,8 +1,8 @@
-#include "forgedb/storage/disk/disk_manager.h"
+#include "emberdb/storage/disk/disk_manager.h"
 #include <filesystem>
 #include <vector>
 
-namespace forgedb {
+namespace emberdb {
 
 DiskManager::DiskManager(std::string db_file) : db_file_(std::move(db_file)) {}
 
@@ -146,4 +146,4 @@ size_t DiskManager::GetNumPages() const {
     return num_pages_;
 }
 
-} // namespace forgedb
+} // namespace emberdb

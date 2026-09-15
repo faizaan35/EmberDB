@@ -1,6 +1,6 @@
 ﻿cmake_minimum_required(VERSION 3.20)
 
-project(ForgeDB
+project(EmberDB
     VERSION 0.1.0
     DESCRIPTION "A from-scratch relational database management system in C++17"
     LANGUAGES CXX

@@ -1,6 +1,6 @@
-﻿#include "forgedb/common/types.h"
+﻿#include "emberdb/common/types.h"
 
-namespace forgedb {
+namespace emberdb {
 
 std::string TypeIdToString(TypeId type_id) {
     switch (type_id) {
@@ -211,4 +211,4 @@ bool Value::operator<(const Value& o) const {
     return type_id_ < o.type_id_;
 }
 
-} // namespace forgedb
+} // namespace emberdb

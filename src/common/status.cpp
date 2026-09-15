@@ -1,6 +1,6 @@
-﻿#include "forgedb/common/status.h"
+﻿#include "emberdb/common/status.h"
 
-namespace forgedb {
+namespace emberdb {
 
 std::string Status::ToString() const {
     if (ok()) {
@@ -43,4 +43,4 @@ std::string Status::ToString() const {
     return prefix + message_;
 }
 
-} // namespace forgedb
+} // namespace emberdb

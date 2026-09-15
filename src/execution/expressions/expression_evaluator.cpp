@@ -1,7 +1,7 @@
-#include "forgedb/execution/expressions/expression_evaluator.h"
+#include "emberdb/execution/expressions/expression_evaluator.h"
 #include <stdexcept>
 
-namespace forgedb {
+namespace emberdb {
 
 Value ExpressionEvaluator::Evaluate(const Expression* expr, const Record* record, const Schema* schema) {
     if (!expr) {
@@ -136,4 +136,4 @@ Value ExpressionEvaluator::EvaluateUnary(const UnaryExpression* expr, const Reco
     throw std::runtime_error("Unsupported unary operator");
 }
 
-} // namespace forgedb
+} // namespace emberdb

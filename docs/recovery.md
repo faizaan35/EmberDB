@@ -1,6 +1,6 @@
-﻿# ForgeDB Write-Ahead Logging & Crash Recovery
+﻿# EmberDB Write-Ahead Logging & Crash Recovery
 
-ForgeDB implements Write-Ahead Logging (WAL) and ARIES-style recovery protocols to maintain durability and atomicity in the event of unexpected process crashes or system shutdowns.
+EmberDB implements Write-Ahead Logging (WAL) and ARIES-style recovery protocols to maintain durability and atomicity in the event of unexpected process crashes or system shutdowns.
 
 ## 1. The Core WAL Invariant
 

@@ -1,6 +1,6 @@
 ﻿#include <catch2/catch.hpp>
-#include "forgedb/storage/disk/disk_manager.h"
-#include "forgedb/catalog/catalog.h"
+#include "emberdb/storage/disk/disk_manager.h"
+#include "emberdb/catalog/catalog.h"
 #include <filesystem>
 
 TEST_CASE("Catalog table creation, schema persistence, and lookup", "[catalog]") {
@@ -9,20 +9,20 @@ TEST_CASE("Catalog table creation, schema persistence, and lookup", "[catalog]")
         std::filesystem::remove(test_db);
     }
 
-    forgedb::Column c1("id", forgedb::TypeId::INTEGER);
-    forgedb::Column c2("name", forgedb::TypeId::VARCHAR, 50);
-    forgedb::Schema user_schema({c1, c2});
+    emberdb::Column c1("id", emberdb::TypeId::INTEGER);
+    emberdb::Column c2("name", emberdb::TypeId::VARCHAR, 50);
+    emberdb::Schema user_schema({c1, c2});
 
-    forgedb::Column o1("order_id", forgedb::TypeId::BIGINT);
-    forgedb::Column o2("total", forgedb::TypeId::DOUBLE);
-    forgedb::Schema order_schema({o1, o2});
+    emberdb::Column o1("order_id", emberdb::TypeId::BIGINT);
+    emberdb::Column o2("total", emberdb::TypeId::DOUBLE);
+    emberdb::Schema order_schema({o1, o2});
 
     // Step 1: Create catalog and tables
     {
-        forgedb::DiskManager disk_mgr(test_db);
+        emberdb::DiskManager disk_mgr(test_db);
         REQUIRE(disk_mgr.Open().ok());
 
-        forgedb::Catalog catalog(&disk_mgr);
+        emberdb::Catalog catalog(&disk_mgr);
         REQUIRE(catalog.Init().ok());
 
         auto res_users = catalog.CreateTable("users", user_schema);
@@ -46,10 +46,10 @@ TEST_CASE("Catalog table creation, schema persistence, and lookup", "[catalog]")
 
     // Step 2: Reopen catalog from disk and verify persisted metadata
     {
-        forgedb::DiskManager disk_mgr(test_db);
+        emberdb::DiskManager disk_mgr(test_db);
         REQUIRE(disk_mgr.Open().ok());
 
-        forgedb::Catalog catalog(&disk_mgr);
+        emberdb::Catalog catalog(&disk_mgr);
         REQUIRE(catalog.Init().ok());
 
         REQUIRE(catalog.HasTable("users"));

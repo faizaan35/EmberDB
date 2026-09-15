@@ -1,22 +1,22 @@
 ﻿#include <catch2/catch.hpp>
-#include "forgedb/common/types.h"
-#include "forgedb/catalog/column.h"
-#include "forgedb/catalog/schema.h"
-#include "forgedb/storage/page/page.h"
+#include "emberdb/common/types.h"
+#include "emberdb/catalog/column.h"
+#include "emberdb/catalog/schema.h"
+#include "emberdb/storage/page/page.h"
 
 TEST_CASE("RID properties and comparisons", "[types]") {
-    forgedb::RID invalid_rid;
+    emberdb::RID invalid_rid;
     REQUIRE_FALSE(invalid_rid.IsValid());
 
-    forgedb::RID rid1(10, 5);
+    emberdb::RID rid1(10, 5);
     REQUIRE(rid1.IsValid());
     REQUIRE(rid1.page_id == 10);
     REQUIRE(rid1.slot_id == 5);
     REQUIRE(rid1.ToString() == "RID(10, 5)");
 
-    forgedb::RID rid2(10, 5);
-    forgedb::RID rid3(10, 6);
-    forgedb::RID rid4(11, 1);
+    emberdb::RID rid2(10, 5);
+    emberdb::RID rid3(10, 6);
+    emberdb::RID rid4(11, 1);
 
     REQUIRE(rid1 == rid2);
     REQUIRE(rid1 != rid3);
@@ -26,10 +26,10 @@ TEST_CASE("RID properties and comparisons", "[types]") {
 
 TEST_CASE("Value types, nulls, and conversions", "[types]") {
     SECTION("Boolean Value") {
-        forgedb::Value v_true(true);
-        forgedb::Value v_false(false);
+        emberdb::Value v_true(true);
+        emberdb::Value v_false(false);
         REQUIRE_FALSE(v_true.IsNull());
-        REQUIRE(v_true.GetTypeId() == forgedb::TypeId::BOOLEAN);
+        REQUIRE(v_true.GetTypeId() == emberdb::TypeId::BOOLEAN);
         REQUIRE(v_true.GetAsBoolean() == true);
         REQUIRE(v_false.GetAsBoolean() == false);
         REQUIRE(v_true.ToString() == "true");
@@ -37,51 +37,51 @@ TEST_CASE("Value types, nulls, and conversions", "[types]") {
     }
 
     SECTION("Integer and BigInt Values") {
-        forgedb::Value v_int(static_cast<int32_t>(12345));
-        REQUIRE(v_int.GetTypeId() == forgedb::TypeId::INTEGER);
+        emberdb::Value v_int(static_cast<int32_t>(12345));
+        REQUIRE(v_int.GetTypeId() == emberdb::TypeId::INTEGER);
         REQUIRE(v_int.GetAsInteger() == 12345);
         REQUIRE(v_int.GetAsBigInt() == 12345);
         REQUIRE(v_int.GetAsDouble() == 12345.0);
         REQUIRE(v_int.ToString() == "12345");
 
-        forgedb::Value v_big(static_cast<int64_t>(9876543210LL));
-        REQUIRE(v_big.GetTypeId() == forgedb::TypeId::BIGINT);
+        emberdb::Value v_big(static_cast<int64_t>(9876543210LL));
+        REQUIRE(v_big.GetTypeId() == emberdb::TypeId::BIGINT);
         REQUIRE(v_big.GetAsBigInt() == 9876543210LL);
         REQUIRE(v_big.ToString() == "9876543210");
     }
 
     SECTION("Double Value") {
-        forgedb::Value v_double(3.14159);
-        REQUIRE(v_double.GetTypeId() == forgedb::TypeId::DOUBLE);
+        emberdb::Value v_double(3.14159);
+        REQUIRE(v_double.GetTypeId() == emberdb::TypeId::DOUBLE);
         REQUIRE(v_double.GetAsDouble() == Approx(3.14159));
     }
 
     SECTION("VarChar Value") {
-        forgedb::Value v_str("ForgeDB Engine");
-        REQUIRE(v_str.GetTypeId() == forgedb::TypeId::VARCHAR);
-        REQUIRE(v_str.GetAsVarChar() == "ForgeDB Engine");
-        REQUIRE(v_str.ToString() == "ForgeDB Engine");
+        emberdb::Value v_str("EmberDB Engine");
+        REQUIRE(v_str.GetTypeId() == emberdb::TypeId::VARCHAR);
+        REQUIRE(v_str.GetAsVarChar() == "EmberDB Engine");
+        REQUIRE(v_str.ToString() == "EmberDB Engine");
     }
 
     SECTION("Null Value") {
-        auto v_null = forgedb::Value::Null(forgedb::TypeId::INTEGER);
+        auto v_null = emberdb::Value::Null(emberdb::TypeId::INTEGER);
         REQUIRE(v_null.IsNull());
-        REQUIRE(v_null.GetTypeId() == forgedb::TypeId::INTEGER);
+        REQUIRE(v_null.GetTypeId() == emberdb::TypeId::INTEGER);
         REQUIRE(v_null.ToString() == "NULL");
         REQUIRE_THROWS_AS(v_null.GetAsInteger(), std::runtime_error);
     }
 }
 
 TEST_CASE("Value binary serialization and deserialization", "[types]") {
-    std::vector<forgedb::Value> test_values = {
-        forgedb::Value(true),
-        forgedb::Value(false),
-        forgedb::Value(static_cast<int32_t>(-42)),
-        forgedb::Value(static_cast<int64_t>(1234567890123LL)),
-        forgedb::Value(2.718281828),
-        forgedb::Value("A variable length string test for ForgeDB"),
-        forgedb::Value::Null(forgedb::TypeId::VARCHAR),
-        forgedb::Value::Null(forgedb::TypeId::INTEGER)
+    std::vector<emberdb::Value> test_values = {
+        emberdb::Value(true),
+        emberdb::Value(false),
+        emberdb::Value(static_cast<int32_t>(-42)),
+        emberdb::Value(static_cast<int64_t>(1234567890123LL)),
+        emberdb::Value(2.718281828),
+        emberdb::Value("A variable length string test for EmberDB"),
+        emberdb::Value::Null(emberdb::TypeId::VARCHAR),
+        emberdb::Value::Null(emberdb::TypeId::INTEGER)
     };
 
     char buffer[512];
@@ -90,7 +90,7 @@ TEST_CASE("Value binary serialization and deserialization", "[types]") {
         original.SerializeTo(buffer);
 
         size_t bytes_read = 0;
-        forgedb::Value deserialized = forgedb::Value::DeserializeFrom(buffer, original.GetTypeId(), bytes_read);
+        emberdb::Value deserialized = emberdb::Value::DeserializeFrom(buffer, original.GetTypeId(), bytes_read);
 
         REQUIRE(bytes_read == expected_size);
         REQUIRE(deserialized.IsNull() == original.IsNull());
@@ -100,15 +100,15 @@ TEST_CASE("Value binary serialization and deserialization", "[types]") {
 }
 
 TEST_CASE("Column and Schema definitions and serialization", "[catalog]") {
-    forgedb::Column c1("id", forgedb::TypeId::INTEGER, false);
-    forgedb::Column c2("name", forgedb::TypeId::VARCHAR, 50, false);
-    forgedb::Column c3("balance", forgedb::TypeId::DOUBLE, true);
+    emberdb::Column c1("id", emberdb::TypeId::INTEGER, false);
+    emberdb::Column c2("name", emberdb::TypeId::VARCHAR, 50, false);
+    emberdb::Column c3("balance", emberdb::TypeId::DOUBLE, true);
 
     REQUIRE(c1.GetName() == "id");
-    REQUIRE(c1.GetType() == forgedb::TypeId::INTEGER);
+    REQUIRE(c1.GetType() == emberdb::TypeId::INTEGER);
     REQUIRE_FALSE(c1.IsNullable());
 
-    forgedb::Schema schema({c1, c2, c3});
+    emberdb::Schema schema({c1, c2, c3});
     REQUIRE(schema.GetColumnCount() == 3);
     REQUIRE(schema.HasColumn("id"));
     REQUIRE(schema.HasColumn("name"));
@@ -124,7 +124,7 @@ TEST_CASE("Column and Schema definitions and serialization", "[catalog]") {
     schema.SerializeTo(buffer.data());
 
     size_t bytes_read = 0;
-    forgedb::Schema restored_schema = forgedb::Schema::DeserializeFrom(buffer.data(), bytes_read);
+    emberdb::Schema restored_schema = emberdb::Schema::DeserializeFrom(buffer.data(), bytes_read);
 
     REQUIRE(bytes_read == buffer.size());
     REQUIRE(restored_schema == schema);
@@ -133,8 +133,8 @@ TEST_CASE("Column and Schema definitions and serialization", "[catalog]") {
 }
 
 TEST_CASE("Page in-memory structure and reset", "[storage]") {
-    forgedb::Page page;
-    REQUIRE(page.GetPageId() == forgedb::INVALID_PAGE_ID);
+    emberdb::Page page;
+    REQUIRE(page.GetPageId() == emberdb::INVALID_PAGE_ID);
     REQUIRE(page.GetPinCount() == 0);
     REQUIRE_FALSE(page.IsDirty());
 
@@ -152,7 +152,7 @@ TEST_CASE("Page in-memory structure and reset", "[storage]") {
     REQUIRE(page.GetPinCount() == 0);
 
     page.ResetMemory();
-    REQUIRE(page.GetPageId() == forgedb::INVALID_PAGE_ID);
+    REQUIRE(page.GetPageId() == emberdb::INVALID_PAGE_ID);
     REQUIRE(page.GetPinCount() == 0);
     REQUIRE_FALSE(page.IsDirty());
 }

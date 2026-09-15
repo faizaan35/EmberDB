@@ -1,6 +1,6 @@
-﻿#include "forgedb/catalog/column.h"
+﻿#include "emberdb/catalog/column.h"
 
-namespace forgedb {
+namespace emberdb {
 
 Column::Column(std::string name, TypeId type, bool nullable)
     : name_(std::move(name)), type_(type), length_(0), nullable_(nullable) {
@@ -105,4 +105,4 @@ Column Column::DeserializeFrom(const char* src, size_t& bytes_read) {
     return Column(std::move(name), static_cast<TypeId>(t), length, n != 0);
 }
 
-} // namespace forgedb
+} // namespace emberdb

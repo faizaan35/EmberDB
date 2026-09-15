@@ -1,7 +1,7 @@
-﻿#include "forgedb/storage/record/record.h"
+﻿#include "emberdb/storage/record/record.h"
 #include <stdexcept>
 
-namespace forgedb {
+namespace emberdb {
 
 Record::Record(std::vector<Value> values, const Schema& schema) {
     if (values.size() != schema.GetColumnCount()) {
@@ -109,4 +109,4 @@ std::string Record::ToString(const Schema& schema) const {
     return str;
 }
 
-} // namespace forgedb
+} // namespace emberdb

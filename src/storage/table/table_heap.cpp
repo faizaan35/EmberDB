@@ -1,7 +1,7 @@
-#include "forgedb/storage/table/table_heap.h"
+#include "emberdb/storage/table/table_heap.h"
 #include <vector>
 
-namespace forgedb {
+namespace emberdb {
 
 TableHeap::TableHeap(BufferPoolManager* bpm, page_id_t first_page_id)
     : bpm_(bpm), disk_mgr_(bpm->GetDiskManager()), first_page_id_(first_page_id), last_page_id_(first_page_id) {
@@ -249,4 +249,4 @@ bool TableIterator::operator==(const TableIterator& o) const {
     return current_rid_ == o.current_rid_;
 }
 
-} // namespace forgedb
+} // namespace emberdb

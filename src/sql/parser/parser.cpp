@@ -1,8 +1,8 @@
-﻿#include "forgedb/sql/parser/parser.h"
+﻿#include "emberdb/sql/parser/parser.h"
 #include <limits>
 #include <algorithm>
 
-namespace forgedb {
+namespace emberdb {
 
 Parser::Parser(std::vector<Token> tokens) : tokens_(std::move(tokens)) {}
 
@@ -570,4 +570,4 @@ Result<std::unique_ptr<Expression>> Parser::ParsePrimary() {
     return Status::InvalidSyntax("Unexpected token in expression: '" + Peek().lexeme + "'");
 }
 
-} // namespace forgedb
+} // namespace emberdb

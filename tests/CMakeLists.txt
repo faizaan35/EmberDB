@@ -1,4 +1,4 @@
-add_executable(forgedb_tests
+add_executable(emberdb_tests
     test_main.cpp
     unit/common_test.cpp
     unit/types_test.cpp
@@ -17,18 +17,18 @@ add_executable(forgedb_tests
     storage/buffer_pool_test.cpp
 )
 
-target_include_directories(forgedb_tests
+target_include_directories(emberdb_tests
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/include
         ${CMAKE_SOURCE_DIR}/src/include
 )
 
-target_link_libraries(forgedb_tests
+target_link_libraries(emberdb_tests
     PRIVATE
-        forgedb_core
+        emberdb_core
 )
 
-target_compile_features(forgedb_tests PRIVATE cxx_std_17)
+target_compile_features(emberdb_tests PRIVATE cxx_std_17)
 
 # Register with CTest
-add_test(NAME forgedb_unit_tests COMMAND forgedb_tests)
+add_test(NAME emberdb_unit_tests COMMAND emberdb_tests)

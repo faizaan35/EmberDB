@@ -1,6 +1,6 @@
-# ForgeDB — Implementation Progress Tracker
+# EmberDB — Implementation Progress Tracker
 
-This document tracks progress across all implementation phases of **ForgeDB** as specified in `AGENTS.md`.
+This document tracks progress across all implementation phases of **EmberDB** as specified in `AGENTS.md`.
 
 ---
 
@@ -65,7 +65,7 @@ This document tracks progress across all implementation phases of **ForgeDB** as
   * `ExecutionEngine`: Dispatches statements to executors and formats ASCII result tables.
   * Interactive CLI: Integrated execution engine, supporting multi-line SQL input and schema introspection meta-commands (`.tables`, `.schema`).
 * **Build Command**: `cmake --build build --config Debug`
-* **Test Command**: `ctest --test-dir build --output-on-failure` & `.\build\bin\forgedb_tests.exe`
+* **Test Command**: `ctest --test-dir build --output-on-failure` & `.\build\bin\emberdb_tests.exe`
 * **Test Results**: 20 test cases, 1179 assertions passed, 0 failures.
 
 ### Phase 5 — Query Features (ORDER BY, LIMIT, Aggregates, GROUP BY)
@@ -80,7 +80,7 @@ This document tracks progress across all implementation phases of **ForgeDB** as
   * `AggregateExecutor`: COUNT(*), COUNT(col), SUM, AVG, MIN, MAX, with optional GROUP BY grouping hash-map.
   * `ExecutionEngine` query pipeline integration: `SeqScan -> [Aggregate] -> [Sort] -> [Limit] -> [Projection]`.
 * **Build Command**: `cmake --build build --config Debug`
-* **Test Command**: `.\build\bin\forgedb_tests.exe`
+* **Test Command**: `.\build\bin\emberdb_tests.exe`
 * **Test Results**: 23 test cases, 1272 assertions passed, 0 failures.
 
 ### Phase 6 — JOINs (Nested Loop Join, INNER / LEFT)
@@ -103,7 +103,7 @@ This document tracks progress across all implementation phases of **ForgeDB** as
   * Schema & Expression resolution: Suffix and prefix resolution in `Schema::GetColIdx` with ambiguity detection and support for `table.column` qualified references.
   * `ExecutionEngine` join pipeline: Automatic schema synthesis, multi-join chaining, and filter execution.
 * **Build Command**: `cmake --build build --config Debug`
-* **Test Command**: `.\build\bin\forgedb_tests.exe`
+* **Test Command**: `.\build\bin\emberdb_tests.exe`
 * **Test Results**: 24 test cases, 1405 assertions passed, 0 failures.
 
 ### Phase 7 — Buffer Pool (LRU, Pin/Unpin, Dirty Tracking)
@@ -121,5 +121,5 @@ This document tracks progress across all implementation phases of **ForgeDB** as
   * `TableHeap` & `Catalog` integration: Unified storage layer where relation data and catalog metadata route through the buffer pool.
   * Automatic flush coordination: Flush hooks in `DiskManager` ensure dirty pages are flushed prior to closing.
 * **Build Command**: `cmake --build build --config Debug`
-* **Test Command**: `.\build\bin\forgedb_tests.exe`
+* **Test Command**: `.\build\bin\emberdb_tests.exe`
 * **Test Results**: 27 test cases, 2045 assertions passed, 0 failures.

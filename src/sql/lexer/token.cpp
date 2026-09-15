@@ -1,6 +1,6 @@
-﻿#include "forgedb/sql/lexer/token.h"
+﻿#include "emberdb/sql/lexer/token.h"
 
-namespace forgedb {
+namespace emberdb {
 
 std::string TokenTypeToString(TokenType type) {
     switch (type) {
@@ -70,4 +70,4 @@ std::string Token::ToString() const {
     return TokenTypeToString(type) + "(" + lexeme + ")";
 }
 
-} // namespace forgedb
+} // namespace emberdb

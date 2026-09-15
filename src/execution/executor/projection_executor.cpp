@@ -1,7 +1,7 @@
-﻿#include "forgedb/execution/executor/projection_executor.h"
-#include "forgedb/execution/expressions/expression_evaluator.h"
+﻿#include "emberdb/execution/executor/projection_executor.h"
+#include "emberdb/execution/expressions/expression_evaluator.h"
 
-namespace forgedb {
+namespace emberdb {
 
 ProjectionExecutor::ProjectionExecutor(AbstractExecutor* child,
                                        std::vector<const Expression*> expressions,
@@ -31,4 +31,4 @@ bool ProjectionExecutor::Next(Record* record, RID* rid) {
     return true;
 }
 
-} // namespace forgedb
+} // namespace emberdb

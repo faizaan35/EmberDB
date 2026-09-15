@@ -1,6 +1,6 @@
-﻿# ForgeDB On-Disk Storage Format
+﻿# EmberDB On-Disk Storage Format
 
-ForgeDB organizes all database files using fixed-size blocks called **Pages**.
+EmberDB organizes all database files using fixed-size blocks called **Pages**.
 
 ## 1. Page Specifications
 
@@ -45,7 +45,7 @@ To accommodate variable-length records (e.g. `VARCHAR`), pages use a slotted-pag
 
 ## 3. Record Identifier (RID)
 
-Every record stored in ForgeDB is addressed by a stable 64-bit identifier composed of:
+Every record stored in EmberDB is addressed by a stable 64-bit identifier composed of:
 * `page_id` (32-bit): The physical page where the record resides.
 * `slot_id` (32-bit): The index within the page's slot directory.
 

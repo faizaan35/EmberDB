@@ -1,6 +1,6 @@
-#include "forgedb/catalog/schema.h"
+#include "emberdb/catalog/schema.h"
 
-namespace forgedb {
+namespace emberdb {
 
 Schema::Schema(std::vector<Column> columns) : columns_(std::move(columns)) {
     for (uint32_t i = 0; i < columns_.size(); ++i) {
@@ -110,4 +110,4 @@ Schema Schema::DeserializeFrom(const char* src, size_t& bytes_read) {
     return Schema(std::move(cols));
 }
 
-} // namespace forgedb
+} // namespace emberdb

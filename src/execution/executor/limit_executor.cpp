@@ -1,6 +1,6 @@
-﻿#include "forgedb/execution/executor/limit_executor.h"
+﻿#include "emberdb/execution/executor/limit_executor.h"
 
-namespace forgedb {
+namespace emberdb {
 
 LimitExecutor::LimitExecutor(AbstractExecutor* child, size_t limit)
     : child_(child), limit_(limit) {}
@@ -18,4 +18,4 @@ bool LimitExecutor::Next(Record* record, RID* rid) {
     return false;
 }
 
-} // namespace forgedb
+} // namespace emberdb

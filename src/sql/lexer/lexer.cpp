@@ -1,8 +1,8 @@
-﻿#include "forgedb/sql/lexer/lexer.h"
+﻿#include "emberdb/sql/lexer/lexer.h"
 #include <cctype>
 #include <algorithm>
 
-namespace forgedb {
+namespace emberdb {
 
 const std::unordered_map<std::string, TokenType> Lexer::keywords_ = {
     {"CREATE", TokenType::KEYWORD_CREATE},
@@ -239,4 +239,4 @@ Token Lexer::ScanString() {
     return Token(TokenType::ILLEGAL, "Unterminated string literal", line_, start_col_);
 }
 
-} // namespace forgedb
+} // namespace emberdb

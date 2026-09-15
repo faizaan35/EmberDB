@@ -1,7 +1,7 @@
-#include "forgedb/execution/executor/seq_scan_executor.h"
-#include "forgedb/execution/expressions/expression_evaluator.h"
+#include "emberdb/execution/executor/seq_scan_executor.h"
+#include "emberdb/execution/expressions/expression_evaluator.h"
 
-namespace forgedb {
+namespace emberdb {
 
 SeqScanExecutor::SeqScanExecutor(Table* table, const Expression* filter, std::optional<Schema> output_schema)
     : table_(table), filter_(filter), output_schema_(std::move(output_schema)), iterator_(table->GetTableHeap()->End()) {}
@@ -25,4 +25,4 @@ bool SeqScanExecutor::Next(Record* record, RID* rid) {
     return false;
 }
 
-} // namespace forgedb
+} // namespace emberdb

@@ -1,9 +1,9 @@
-#include "forgedb/catalog/catalog.h"
+#include "emberdb/catalog/catalog.h"
 #include <cstring>
 
-namespace forgedb {
+namespace emberdb {
 
-static constexpr char CATALOG_MAGIC[16] = "FORGEDB_CATALOG";
+static constexpr char CATALOG_MAGIC[16] = "EMBERDB_CATALOG";
 
 Catalog::Catalog(BufferPoolManager* bpm)
     : bpm_(bpm), disk_mgr_(bpm->GetDiskManager()) {}
@@ -166,4 +166,4 @@ std::vector<std::string> Catalog::GetAllTableNames() const {
     return table_names_;
 }
 
-} // namespace forgedb
+} // namespace emberdb

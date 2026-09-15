@@ -1,6 +1,6 @@
-﻿#include "forgedb/storage/page/page.h"
+﻿#include "emberdb/storage/page/page.h"
 
-namespace forgedb {
+namespace emberdb {
 
 Page::Page() {
     ResetMemory();
@@ -24,4 +24,4 @@ void Page::ResetMemory() {
     is_dirty_ = false;
 }
 
-} // namespace forgedb
+} // namespace emberdb

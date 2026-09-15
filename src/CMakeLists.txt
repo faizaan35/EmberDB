@@ -1,5 +1,5 @@
 # Core static library for database engine components
-add_library(forgedb_core STATIC
+add_library(emberdb_core STATIC
     common/status.cpp
     common/types.cpp
     catalog/column.cpp
@@ -27,21 +27,21 @@ add_library(forgedb_core STATIC
     execution/executor/execution_engine.cpp
 )
 
-target_include_directories(forgedb_core
+target_include_directories(emberdb_core
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
-target_compile_features(forgedb_core PUBLIC cxx_std_17)
+target_compile_features(emberdb_core PUBLIC cxx_std_17)
 
 # CLI executable
-add_executable(forgedb
+add_executable(emberdb
     main.cpp
 )
 
-target_link_libraries(forgedb
+target_link_libraries(emberdb
     PRIVATE
-        forgedb_core
+        emberdb_core
 )
 
-target_compile_features(forgedb PRIVATE cxx_std_17)
+target_compile_features(emberdb PRIVATE cxx_std_17)

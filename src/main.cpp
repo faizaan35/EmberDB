@@ -2,25 +2,25 @@
 #include <string>
 #include <vector>
 #include <filesystem>
-#include "forgedb/common/config.h"
-#include "forgedb/common/status.h"
-#include "forgedb/storage/disk/disk_manager.h"
-#include "forgedb/catalog/catalog.h"
-#include "forgedb/sql/lexer/lexer.h"
-#include "forgedb/sql/parser/parser.h"
-#include "forgedb/execution/executor/execution_engine.h"
+#include "emberdb/common/config.h"
+#include "emberdb/common/status.h"
+#include "emberdb/storage/disk/disk_manager.h"
+#include "emberdb/catalog/catalog.h"
+#include "emberdb/sql/lexer/lexer.h"
+#include "emberdb/sql/parser/parser.h"
+#include "emberdb/execution/executor/execution_engine.h"
 
 void PrintBanner() {
     std::cout << "========================================" << std::endl;
-    std::cout << "ForgeDB v" << forgedb::FORGEDB_VERSION 
+    std::cout << "EmberDB v" << emberdb::EMBERDB_VERSION 
               << " - From-Scratch Relational Database Engine" << std::endl;
     std::cout << "Type '.help' for commands or '.exit' to quit." << std::endl;
     std::cout << "========================================" << std::endl;
 }
 
 void PrintHelp() {
-    std::cout << "ForgeDB Command Line Interface" << std::endl;
-    std::cout << "Usage: forgedb [options] [database_path]" << std::endl;
+    std::cout << "EmberDB Command Line Interface" << std::endl;
+    std::cout << "Usage: emberdb [options] [database_path]" << std::endl;
     std::cout << "\nOptions:" << std::endl;
     std::cout << "  -h, --help       Show this help message" << std::endl;
     std::cout << "  -v, --version    Display version information" << std::endl;
@@ -33,21 +33,21 @@ void PrintHelp() {
 }
 
 void RunRepl(const std::string& db_path) {
-    forgedb::DiskManager disk_mgr(db_path);
+    emberdb::DiskManager disk_mgr(db_path);
     auto open_status = disk_mgr.Open();
     if (!open_status.ok()) {
         std::cerr << "Failed to open database file: " << open_status.ToString() << std::endl;
         return;
     }
 
-    forgedb::Catalog catalog(&disk_mgr);
+    emberdb::Catalog catalog(&disk_mgr);
     auto cat_status = catalog.Init();
     if (!cat_status.ok()) {
         std::cerr << "Failed to initialize database catalog: " << cat_status.ToString() << std::endl;
         return;
     }
 
-    forgedb::ExecutionEngine engine(&catalog);
+    emberdb::ExecutionEngine engine(&catalog);
 
     PrintBanner();
     std::cout << "Connected to database at: " << db_path << "\n" << std::endl;
@@ -57,13 +57,13 @@ void RunRepl(const std::string& db_path) {
 
     while (true) {
         if (sql_buffer.empty()) {
-            std::cout << "ForgeDB> ";
+            std::cout << "EmberDB> ";
         } else {
             std::cout << "   ...> ";
         }
 
         if (!std::getline(std::cin, line)) {
-            std::cout << "\nExiting ForgeDB." << std::endl;
+            std::cout << "\nExiting EmberDB." << std::endl;
             break;
         }
 
@@ -78,12 +78,12 @@ void RunRepl(const std::string& db_path) {
         if (sql_buffer.empty() && trimmed[0] == '.') {
             // Handle meta-commands
             if (trimmed == ".exit" || trimmed == ".quit") {
-                std::cout << "Exiting ForgeDB." << std::endl;
+                std::cout << "Exiting EmberDB." << std::endl;
                 break;
             } else if (trimmed == ".help") {
                 PrintHelp();
             } else if (trimmed == ".version") {
-                std::cout << "ForgeDB version " << forgedb::FORGEDB_VERSION << std::endl;
+                std::cout << "EmberDB version " << emberdb::EMBERDB_VERSION << std::endl;
             } else if (trimmed == ".tables") {
                 auto tbl_names = catalog.GetAllTableNames();
                 if (tbl_names.empty()) {
@@ -125,9 +125,9 @@ void RunRepl(const std::string& db_path) {
         sql_buffer += trimmed;
 
         if (sql_buffer.back() == ';') {
-            forgedb::Lexer lexer(sql_buffer);
+            emberdb::Lexer lexer(sql_buffer);
             auto tokens = lexer.Tokenize();
-            forgedb::Parser parser(std::move(tokens));
+            emberdb::Parser parser(std::move(tokens));
             auto stmt_res = parser.Parse();
 
             if (!stmt_res.ok()) {
@@ -152,7 +152,7 @@ int main(int argc, char* argv[]) {
             PrintHelp();
             return 0;
         } else if (arg == "-v" || arg == "--version") {
-            std::cout << "ForgeDB v" << forgedb::FORGEDB_VERSION << std::endl;
+            std::cout << "EmberDB v" << emberdb::EMBERDB_VERSION << std::endl;
             return 0;
         } else if (arg[0] != '-') {
             db_path = arg;

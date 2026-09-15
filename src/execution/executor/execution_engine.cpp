@@ -1,17 +1,17 @@
-#include "forgedb/execution/executor/execution_engine.h"
-#include "forgedb/execution/executor/seq_scan_executor.h"
-#include "forgedb/execution/executor/projection_executor.h"
-#include "forgedb/execution/executor/sort_executor.h"
-#include "forgedb/execution/executor/limit_executor.h"
-#include "forgedb/execution/executor/aggregate_executor.h"
-#include "forgedb/execution/executor/filter_executor.h"
-#include "forgedb/execution/executor/nested_loop_join_executor.h"
-#include "forgedb/execution/expressions/expression_evaluator.h"
+#include "emberdb/execution/executor/execution_engine.h"
+#include "emberdb/execution/executor/seq_scan_executor.h"
+#include "emberdb/execution/executor/projection_executor.h"
+#include "emberdb/execution/executor/sort_executor.h"
+#include "emberdb/execution/executor/limit_executor.h"
+#include "emberdb/execution/executor/aggregate_executor.h"
+#include "emberdb/execution/executor/filter_executor.h"
+#include "emberdb/execution/executor/nested_loop_join_executor.h"
+#include "emberdb/execution/expressions/expression_evaluator.h"
 #include <iomanip>
 #include <sstream>
 #include <algorithm>
 
-namespace forgedb {
+namespace emberdb {
 
 ExecutionEngine::ExecutionEngine(Catalog* catalog) : catalog_(catalog) {}
 
@@ -497,4 +497,4 @@ std::string QueryResult::FormatAsTable() const {
     return ss.str();
 }
 
-} // namespace forgedb
+} // namespace emberdb

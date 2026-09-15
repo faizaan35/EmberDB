@@ -1,6 +1,6 @@
-﻿# ForgeDB Architecture Overview
+﻿# EmberDB Architecture Overview
 
-ForgeDB is a from-scratch relational database management system designed with strict component separation across three primary layers: the **Interface Layer**, the **Relational Query Engine**, and the **Storage & Durability Engine**.
+EmberDB is a from-scratch relational database management system designed with strict component separation across three primary layers: the **Interface Layer**, the **Relational Query Engine**, and the **Storage & Durability Engine**.
 
 ```
                          Browser (Vite/React)
@@ -15,7 +15,7 @@ ForgeDB is a from-scratch relational database management system designed with st
                                  │
                                  ▼
                      ┌───────────────────────┐
-                     │   ForgeDB Engine API  │
+                     │   EmberDB Engine API  │
                      └───────────┬───────────┘
                                  │
             ┌────────────────────┼────────────────────┐

@@ -1,7 +1,7 @@
-#include "forgedb/execution/executor/filter_executor.h"
-#include "forgedb/execution/expressions/expression_evaluator.h"
+#include "emberdb/execution/executor/filter_executor.h"
+#include "emberdb/execution/expressions/expression_evaluator.h"
 
-namespace forgedb {
+namespace emberdb {
 
 void FilterExecutor::Init() {
     if (child_) {
@@ -20,4 +20,4 @@ bool FilterExecutor::Next(Record* record, RID* rid) {
     return false;
 }
 
-} // namespace forgedb
+} // namespace emberdb

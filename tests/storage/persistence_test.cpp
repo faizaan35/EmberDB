@@ -1,5 +1,5 @@
 ﻿#include <catch2/catch.hpp>
-#include "forgedb/storage/disk/disk_manager.h"
+#include "emberdb/storage/disk/disk_manager.h"
 #include <filesystem>
 #include <vector>
 #include <cstring>
@@ -11,11 +11,11 @@ TEST_CASE("Phase 1 Completion Gate: Page persistence across close and reopen", "
     }
 
     constexpr size_t NUM_TEST_PAGES = 5;
-    std::vector<std::vector<char>> expected_pages(NUM_TEST_PAGES, std::vector<char>(forgedb::PAGE_SIZE));
+    std::vector<std::vector<char>> expected_pages(NUM_TEST_PAGES, std::vector<char>(emberdb::PAGE_SIZE));
 
     // Fill each page with deterministic pseudo-random / structured data
     for (size_t p = 0; p < NUM_TEST_PAGES; ++p) {
-        for (size_t i = 0; i < forgedb::PAGE_SIZE; ++i) {
+        for (size_t i = 0; i < emberdb::PAGE_SIZE; ++i) {
             expected_pages[p][i] = static_cast<char>((p * 37 + i * 17 + 101) % 256);
         }
         // Stamp page ID marker in page header
@@ -25,16 +25,16 @@ TEST_CASE("Phase 1 Completion Gate: Page persistence across close and reopen", "
 
     // Step 1: Open DiskManager, allocate pages, write page data, flush, and close
     {
-        forgedb::DiskManager disk_mgr(test_db_path);
+        emberdb::DiskManager disk_mgr(test_db_path);
         auto open_status = disk_mgr.Open();
         REQUIRE(open_status.ok());
 
         for (size_t p = 0; p < NUM_TEST_PAGES; ++p) {
             auto alloc_res = disk_mgr.AllocatePage();
             REQUIRE(alloc_res.ok());
-            REQUIRE(*alloc_res == static_cast<forgedb::page_id_t>(p));
+            REQUIRE(*alloc_res == static_cast<emberdb::page_id_t>(p));
 
-            auto write_status = disk_mgr.WritePage(static_cast<forgedb::page_id_t>(p), expected_pages[p].data());
+            auto write_status = disk_mgr.WritePage(static_cast<emberdb::page_id_t>(p), expected_pages[p].data());
             REQUIRE(write_status.ok());
         }
 
@@ -44,23 +44,23 @@ TEST_CASE("Phase 1 Completion Gate: Page persistence across close and reopen", "
     }
 
     // Verify file size on disk is exactly NUM_TEST_PAGES * 4096 bytes
-    REQUIRE(std::filesystem::file_size(test_db_path) == NUM_TEST_PAGES * forgedb::PAGE_SIZE);
+    REQUIRE(std::filesystem::file_size(test_db_path) == NUM_TEST_PAGES * emberdb::PAGE_SIZE);
 
     // Step 2: Reopen DiskManager on the same database file and verify exact contents
     {
-        forgedb::DiskManager disk_mgr(test_db_path);
+        emberdb::DiskManager disk_mgr(test_db_path);
         auto open_status = disk_mgr.Open();
         REQUIRE(open_status.ok());
         REQUIRE(disk_mgr.IsOpen());
         REQUIRE(disk_mgr.GetNumPages() == NUM_TEST_PAGES);
 
-        std::vector<char> read_buffer(forgedb::PAGE_SIZE);
+        std::vector<char> read_buffer(emberdb::PAGE_SIZE);
         for (size_t p = 0; p < NUM_TEST_PAGES; ++p) {
-            auto read_status = disk_mgr.ReadPage(static_cast<forgedb::page_id_t>(p), read_buffer.data());
+            auto read_status = disk_mgr.ReadPage(static_cast<emberdb::page_id_t>(p), read_buffer.data());
             REQUIRE(read_status.ok());
 
             // Byte-by-byte exact match check
-            bool identical = (std::memcmp(read_buffer.data(), expected_pages[p].data(), forgedb::PAGE_SIZE) == 0);
+            bool identical = (std::memcmp(read_buffer.data(), expected_pages[p].data(), emberdb::PAGE_SIZE) == 0);
             REQUIRE(identical);
         }
 

@@ -1,7 +1,7 @@
-#include "forgedb/execution/executor/aggregate_executor.h"
-#include "forgedb/execution/expressions/expression_evaluator.h"
+#include "emberdb/execution/executor/aggregate_executor.h"
+#include "emberdb/execution/expressions/expression_evaluator.h"
 
-namespace forgedb {
+namespace emberdb {
 
 AggregateExecutor::AggregateExecutor(AbstractExecutor* child,
                                      std::vector<const Expression*> group_by_exprs,
@@ -142,4 +142,4 @@ bool AggregateExecutor::Next(Record* record, RID* rid) {
     return false;
 }
 
-} // namespace forgedb
+} // namespace emberdb

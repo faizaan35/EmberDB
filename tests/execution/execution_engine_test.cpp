@@ -1,18 +1,18 @@
 ﻿#include <catch2/catch.hpp>
-#include "forgedb/storage/disk/disk_manager.h"
-#include "forgedb/catalog/catalog.h"
-#include "forgedb/sql/lexer/lexer.h"
-#include "forgedb/sql/parser/parser.h"
-#include "forgedb/execution/executor/execution_engine.h"
+#include "emberdb/storage/disk/disk_manager.h"
+#include "emberdb/catalog/catalog.h"
+#include "emberdb/sql/lexer/lexer.h"
+#include "emberdb/sql/parser/parser.h"
+#include "emberdb/execution/executor/execution_engine.h"
 #include <filesystem>
 
-static forgedb::QueryResult RunQuery(forgedb::ExecutionEngine& engine, const std::string& sql) {
-    forgedb::Lexer lexer(sql);
+static emberdb::QueryResult RunQuery(emberdb::ExecutionEngine& engine, const std::string& sql) {
+    emberdb::Lexer lexer(sql);
     auto tokens = lexer.Tokenize();
-    forgedb::Parser parser(std::move(tokens));
+    emberdb::Parser parser(std::move(tokens));
     auto stmt_res = parser.Parse();
     if (!stmt_res.ok()) {
-        return forgedb::QueryResult{false, stmt_res.status().ToString(), {}, {}, 0, 0.0};
+        return emberdb::QueryResult{false, stmt_res.status().ToString(), {}, {}, 0, 0.0};
     }
     return engine.Execute(stmt_res->get());
 }
@@ -23,13 +23,13 @@ TEST_CASE("Phase 4 Completion Gate: SQL end-to-end execution", "[execution][gate
         std::filesystem::remove(test_db);
     }
 
-    forgedb::DiskManager disk_mgr(test_db);
+    emberdb::DiskManager disk_mgr(test_db);
     REQUIRE(disk_mgr.Open().ok());
 
-    forgedb::Catalog catalog(&disk_mgr);
+    emberdb::Catalog catalog(&disk_mgr);
     REQUIRE(catalog.Init().ok());
 
-    forgedb::ExecutionEngine engine(&catalog);
+    emberdb::ExecutionEngine engine(&catalog);
 
     // 1. CREATE TABLE users (id INT, name VARCHAR, age INT);
     {

@@ -1,6 +1,6 @@
-#include "forgedb/storage/buffer/lru_replacer.h"
+#include "emberdb/storage/buffer/lru_replacer.h"
 
-namespace forgedb {
+namespace emberdb {
 
 LRUReplacer::LRUReplacer(size_t num_pages) : capacity_(num_pages) {}
 
@@ -41,4 +41,4 @@ size_t LRUReplacer::Size() {
     return lru_list_.size();
 }
 
-} // namespace forgedb
+} // namespace emberdb

@@ -1,6 +1,6 @@
-#include "forgedb/storage/buffer/buffer_pool_manager.h"
+#include "emberdb/storage/buffer/buffer_pool_manager.h"
 
-namespace forgedb {
+namespace emberdb {
 
 BufferPoolManager::BufferPoolManager(size_t pool_size, DiskManager* disk_mgr)
     : pool_size_(pool_size), disk_mgr_(disk_mgr), pages_(pool_size) {
@@ -188,4 +188,4 @@ int BufferPoolManager::GetPinCount(page_id_t page_id) {
     return pages_[it->second].GetPinCount();
 }
 
-} // namespace forgedb
+} // namespace emberdb

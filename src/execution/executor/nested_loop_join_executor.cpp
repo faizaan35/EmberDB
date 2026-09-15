@@ -1,7 +1,7 @@
-#include "forgedb/execution/executor/nested_loop_join_executor.h"
-#include "forgedb/execution/expressions/expression_evaluator.h"
+#include "emberdb/execution/executor/nested_loop_join_executor.h"
+#include "emberdb/execution/expressions/expression_evaluator.h"
 
-namespace forgedb {
+namespace emberdb {
 
 void NestedLoopJoinExecutor::Init() {
     left_child_->Init();
@@ -75,4 +75,4 @@ Record NestedLoopJoinExecutor::CreateNullRightRecord(const Schema& right_schema)
     return Record(std::move(values), right_schema);
 }
 
-} // namespace forgedb
+} // namespace emberdb

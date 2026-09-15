@@ -1,6 +1,6 @@
-﻿#include "forgedb/sql/ast/ast.h"
+﻿#include "emberdb/sql/ast/ast.h"
 
-namespace forgedb {
+namespace emberdb {
 
 std::string BinaryOpToString(BinaryOpType op) {
     switch (op) {
@@ -126,4 +126,4 @@ std::string DeleteStatement::ToString() const {
     return s;
 }
 
-} // namespace forgedb
+} // namespace emberdb

@@ -1,6 +1,6 @@
 ﻿#include <catch2/catch.hpp>
-#include "forgedb/storage/disk/disk_manager.h"
-#include "forgedb/catalog/catalog.h"
+#include "emberdb/storage/disk/disk_manager.h"
+#include "emberdb/catalog/catalog.h"
 #include <filesystem>
 #include <vector>
 
@@ -10,32 +10,32 @@ TEST_CASE("Phase 2 Completion Gate: Table metadata and records survive process r
         std::filesystem::remove(test_db);
     }
 
-    forgedb::Column c1("id", forgedb::TypeId::INTEGER, false);
-    forgedb::Column c2("username", forgedb::TypeId::VARCHAR, 64, false);
-    forgedb::Column c3("balance", forgedb::TypeId::DOUBLE, true);
-    forgedb::Schema schema({c1, c2, c3});
+    emberdb::Column c1("id", emberdb::TypeId::INTEGER, false);
+    emberdb::Column c2("username", emberdb::TypeId::VARCHAR, 64, false);
+    emberdb::Column c3("balance", emberdb::TypeId::DOUBLE, true);
+    emberdb::Schema schema({c1, c2, c3});
 
     constexpr int NUM_USERS = 80;
 
     // Step 1: Open database, initialize catalog, create table, insert records, close
     {
-        forgedb::DiskManager disk_mgr(test_db);
+        emberdb::DiskManager disk_mgr(test_db);
         REQUIRE(disk_mgr.Open().ok());
 
-        forgedb::Catalog catalog(&disk_mgr);
+        emberdb::Catalog catalog(&disk_mgr);
         REQUIRE(catalog.Init().ok());
 
         auto create_res = catalog.CreateTable("accounts", schema);
         REQUIRE(create_res.ok());
-        forgedb::Table* table = *create_res;
+        emberdb::Table* table = *create_res;
 
         for (int i = 0; i < NUM_USERS; ++i) {
-            std::vector<forgedb::Value> vals = {
-                forgedb::Value(static_cast<int32_t>(i + 1)),
-                forgedb::Value("User_" + std::to_string(i + 1)),
-                forgedb::Value(100.0 + (i * 12.5))
+            std::vector<emberdb::Value> vals = {
+                emberdb::Value(static_cast<int32_t>(i + 1)),
+                emberdb::Value("User_" + std::to_string(i + 1)),
+                emberdb::Value(100.0 + (i * 12.5))
             };
-            forgedb::Record rec(vals, schema);
+            emberdb::Record rec(vals, schema);
             auto insert_status = table->GetTableHeap()->InsertRecord(rec);
             REQUIRE(insert_status.ok());
         }
@@ -47,14 +47,14 @@ TEST_CASE("Phase 2 Completion Gate: Table metadata and records survive process r
 
     // Step 2: Reopen database from scratch, load catalog, scan table, verify all rows
     {
-        forgedb::DiskManager disk_mgr(test_db);
+        emberdb::DiskManager disk_mgr(test_db);
         REQUIRE(disk_mgr.Open().ok());
 
-        forgedb::Catalog catalog(&disk_mgr);
+        emberdb::Catalog catalog(&disk_mgr);
         REQUIRE(catalog.Init().ok());
 
         REQUIRE(catalog.HasTable("accounts"));
-        forgedb::Table* table = catalog.GetTable("accounts");
+        emberdb::Table* table = catalog.GetTable("accounts");
         REQUIRE(table != nullptr);
         REQUIRE(table->GetSchema() == schema);
 

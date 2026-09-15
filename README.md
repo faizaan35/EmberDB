@@ -1,6 +1,6 @@
-﻿# ForgeDB — From-Scratch Relational Database Engine
+﻿# EmberDB — From-Scratch Relational Database Engine
 
-**ForgeDB** is a lightweight, educational relational database management system built entirely from scratch in **C++17**.
+**EmberDB** is a lightweight, educational relational database management system built entirely from scratch in **C++17**.
 
 No external database engines (SQLite, DuckDB, RocksDB, PostgreSQL, MySQL) are used. The storage engine, slotted pages, buffer pool manager, B+ Tree index, SQL lexer/parser, Volcano-style query executor, transaction manager, and Write-Ahead Logging (WAL) are implemented natively.
 
@@ -53,7 +53,7 @@ SQL Query
 ## Directory Structure
 
 ```text
-ForgeDB/
+EmberDB/
 ├── AGENTS.md               # Authoritative system specification
 ├── CMakeLists.txt          # Root CMake build configuration
 ├── README.md               # Project documentation
@@ -70,9 +70,9 @@ ForgeDB/
 │
 ├── src/                    # Database engine implementation
 │   ├── main.cpp            # Interactive CLI executable entrypoint
-│   ├── include/forgedb/    # Public engine headers
+│   ├── include/emberdb/    # Public engine headers
 │   │   ├── common/         # Configuration, Status, Result types
-│   │   └── forgedb.h       # Engine lifecycle interface
+│   │   └── emberdb.h       # Engine lifecycle interface
 │   └── common/             # Common utility implementations
 │
 ├── tests/                  # Test suites
@@ -105,19 +105,19 @@ cmake --build build --config Debug
 ```powershell
 ctest --test-dir build --output-on-failure
 # or run the test binary directly:
-.\build\bin\forgedb_tests.exe
+.\build\bin\emberdb_tests.exe
 ```
 
 ### 4. Launch the Interactive CLI
 ```powershell
-.\build\bin\forgedb.exe
+.\build\bin\emberdb.exe
 ```
 
 Inside the CLI shell:
 ```text
-ForgeDB> .help
-ForgeDB> .version
-ForgeDB> .exit
+EmberDB> .help
+EmberDB> .version
+EmberDB> .exit
 ```
 
 ---

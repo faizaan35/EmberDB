@@ -1,16 +1,16 @@
 #include <catch2/catch.hpp>
-#include "forgedb/storage/disk/disk_manager.h"
-#include "forgedb/storage/buffer/lru_replacer.h"
-#include "forgedb/storage/buffer/buffer_pool_manager.h"
-#include "forgedb/catalog/catalog.h"
-#include "forgedb/execution/executor/execution_engine.h"
-#include "forgedb/sql/lexer/lexer.h"
-#include "forgedb/sql/parser/parser.h"
+#include "emberdb/storage/disk/disk_manager.h"
+#include "emberdb/storage/buffer/lru_replacer.h"
+#include "emberdb/storage/buffer/buffer_pool_manager.h"
+#include "emberdb/catalog/catalog.h"
+#include "emberdb/execution/executor/execution_engine.h"
+#include "emberdb/sql/lexer/lexer.h"
+#include "emberdb/sql/parser/parser.h"
 #include <filesystem>
 #include <vector>
 
 TEST_CASE("LRUReplacer: Pin, Unpin, Victim eviction", "[storage][buffer]") {
-    forgedb::LRUReplacer replacer(5);
+    emberdb::LRUReplacer replacer(5);
 
     // Initial size is 0
     REQUIRE(replacer.Size() == 0);
@@ -28,7 +28,7 @@ TEST_CASE("LRUReplacer: Pin, Unpin, Victim eviction", "[storage][buffer]") {
     REQUIRE(replacer.Size() == 4);
 
     // Frame 1 should be the first victim (least recently unpinned)
-    forgedb::frame_id_t victim_frame;
+    emberdb::frame_id_t victim_frame;
     REQUIRE(replacer.Victim(&victim_frame));
     REQUIRE(victim_frame == 1);
     REQUIRE(replacer.Size() == 3);
@@ -54,13 +54,13 @@ TEST_CASE("BufferPoolManager: Basic Page Lifecycle", "[storage][buffer]") {
         std::filesystem::remove(test_db);
     }
 
-    forgedb::DiskManager disk_mgr(test_db);
+    emberdb::DiskManager disk_mgr(test_db);
     REQUIRE(disk_mgr.Open().ok());
 
     // Pool of size 3
-    forgedb::BufferPoolManager bpm(3, &disk_mgr);
+    emberdb::BufferPoolManager bpm(3, &disk_mgr);
 
-    forgedb::page_id_t page0, page1, page2, page3;
+    emberdb::page_id_t page0, page1, page2, page3;
     auto* p0 = bpm.NewPage(&page0);
     REQUIRE(p0 != nullptr);
     REQUIRE(page0 == 0);
@@ -112,20 +112,20 @@ TEST_CASE("Phase 7 Completion Gate: Correctness with buffer pool smaller than to
 
     // Step 1: Initialize database with a tiny buffer pool (only 3 frames!)
     {
-        forgedb::DiskManager disk_mgr(test_db);
+        emberdb::DiskManager disk_mgr(test_db);
         REQUIRE(disk_mgr.Open().ok());
 
         // Pool size = 3 frames
-        auto bpm = std::make_unique<forgedb::BufferPoolManager>(3, &disk_mgr);
-        forgedb::Catalog catalog(bpm.get());
+        auto bpm = std::make_unique<emberdb::BufferPoolManager>(3, &disk_mgr);
+        emberdb::Catalog catalog(bpm.get());
         REQUIRE(catalog.Init().ok());
 
-        std::vector<forgedb::Column> cols = {
-            forgedb::Column("id", forgedb::TypeId::INTEGER),
-            forgedb::Column("val", forgedb::TypeId::INTEGER),
-            forgedb::Column("note", forgedb::TypeId::VARCHAR, 64)
+        std::vector<emberdb::Column> cols = {
+            emberdb::Column("id", emberdb::TypeId::INTEGER),
+            emberdb::Column("val", emberdb::TypeId::INTEGER),
+            emberdb::Column("note", emberdb::TypeId::VARCHAR, 64)
         };
-        forgedb::Schema schema(std::move(cols));
+        emberdb::Schema schema(std::move(cols));
         auto tbl_res = catalog.CreateTable("test_table", schema);
         REQUIRE(tbl_res.ok());
         auto* table = *tbl_res;
@@ -133,12 +133,12 @@ TEST_CASE("Phase 7 Completion Gate: Correctness with buffer pool smaller than to
         // Insert 150 records across many pages (each page can hold ~30-40 records)
         // With 150 records, this spans ~5-6 pages, far exceeding the 3-frame buffer pool!
         for (int i = 0; i < 150; ++i) {
-            std::vector<forgedb::Value> values = {
-                forgedb::Value(i),
-                forgedb::Value(i * 10),
-                forgedb::Value(std::string("Entry #" + std::to_string(i)))
+            std::vector<emberdb::Value> values = {
+                emberdb::Value(i),
+                emberdb::Value(i * 10),
+                emberdb::Value(std::string("Entry #" + std::to_string(i)))
             };
-            forgedb::Record rec(std::move(values), schema);
+            emberdb::Record rec(std::move(values), schema);
             REQUIRE(table->GetTableHeap()->InsertRecord(rec).ok());
         }
 
@@ -148,11 +148,11 @@ TEST_CASE("Phase 7 Completion Gate: Correctness with buffer pool smaller than to
 
     // Step 2: Re-open database with a tiny buffer pool (3 frames) and verify data integrity
     {
-        forgedb::DiskManager disk_mgr(test_db);
+        emberdb::DiskManager disk_mgr(test_db);
         REQUIRE(disk_mgr.Open().ok());
 
-        auto bpm = std::make_unique<forgedb::BufferPoolManager>(3, &disk_mgr);
-        forgedb::Catalog catalog(bpm.get());
+        auto bpm = std::make_unique<emberdb::BufferPoolManager>(3, &disk_mgr);
+        emberdb::Catalog catalog(bpm.get());
         REQUIRE(catalog.Init().ok());
 
         auto* table = catalog.GetTable("test_table");

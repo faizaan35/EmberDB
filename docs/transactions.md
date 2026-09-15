@@ -1,6 +1,6 @@
-﻿# ForgeDB Transactions Specification
+﻿# EmberDB Transactions Specification
 
-ForgeDB guarantees ACID properties within its supported educational scope.
+EmberDB guarantees ACID properties within its supported educational scope.
 
 ## 1. Transaction Model
 

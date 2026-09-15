@@ -1,9 +1,9 @@
-﻿# ForgeDB Architectural Decision Records (ADRs)
+﻿# EmberDB Architectural Decision Records (ADRs)
 
 ## ADR-001: Selection of C++17 Standard
 
 * **Context**: Modern database engines require low-level memory control, predictable performance, and strong type safety.
-* **Decision**: Adopt ISO C++17 as the core language standard for ForgeDB.
+* **Decision**: Adopt ISO C++17 as the core language standard for EmberDB.
 * **Why**: C++17 provides essential vocabulary types (`std::variant`, `std::optional`, `std::string_view`, structured bindings, `std::shared_mutex`) while enjoying universal compiler support across Windows (MSVC/MinGW GCC) and Linux (GCC/Clang).
 * **Alternatives Considered**:
   * C++14: Lacks `std::variant` and `std::optional`, necessitating external dependencies.

@@ -1,6 +1,6 @@
-﻿#include "forgedb/storage/page/slotted_page.h"
+﻿#include "emberdb/storage/page/slotted_page.h"
 
-namespace forgedb {
+namespace emberdb {
 
 // Offsets within page header
 constexpr size_t OFFSET_PAGE_ID = 0;             // 4 bytes
@@ -209,4 +209,4 @@ bool SlottedPage::DeleteRecord(const RID& rid) {
     return true;
 }
 
-} // namespace forgedb
+} // namespace emberdb
