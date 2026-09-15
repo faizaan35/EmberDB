@@ -1,0 +1,39 @@
+﻿# Build directories
+build/
+cmake-build-*/
+bin/
+out/
+
+# Binaries and libraries
+*.exe
+*.dll
+*.so
+*.dylib
+*.a
+*.lib
+*.obj
+*.o
+*.pdb
+
+# CMake artifacts
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+
+# IDE and editors
+.vscode/
+.vs/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Runtime data files
+data/*.db
+data/*.log
+data/*.wal
+!data/.gitkeep
+
+# Operating system files
+.DS_Store
+Thumbs.db
