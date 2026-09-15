@@ -9,6 +9,8 @@
     storage/table_heap_test.cpp
     catalog/catalog_test.cpp
     integration/table_persistence_test.cpp
+    sql/lexer_test.cpp
+    sql/parser_test.cpp
 )
 
 target_include_directories(forgedb_tests

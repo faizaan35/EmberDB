@@ -10,6 +10,10 @@ add_library(forgedb_core STATIC
     storage/disk/disk_manager.cpp
     storage/record/record.cpp
     storage/table/table_heap.cpp
+    sql/lexer/token.cpp
+    sql/lexer/lexer.cpp
+    sql/ast/ast.cpp
+    sql/parser/parser.cpp
 )
 
 target_include_directories(forgedb_core

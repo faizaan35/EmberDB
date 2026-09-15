@@ -4,6 +4,7 @@
 #include <variant>
 #include <utility>
 #include <stdexcept>
+#include <type_traits>
 
 namespace forgedb {
 
@@ -58,6 +59,10 @@ template <typename T>
 class Result {
 public:
     Result(T value) : data_(std::move(value)) {}
+
+    template <typename U, typename = std::enable_if_t<std::is_constructible_v<T, U> && !std::is_same_v<std::decay_t<U>, Status> && !std::is_same_v<std::decay_t<U>, Result<T>>>>
+    Result(U&& value) : data_(T(std::forward<U>(value))) {}
+
     Result(Status status) : data_(std::move(status)) {
         if (std::get<Status>(data_).ok()) {
             throw std::logic_error("Result cannot be initialized with an OK Status instead of a value");

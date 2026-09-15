@@ -11,8 +11,8 @@ This document tracks progress across all implementation phases of **ForgeDB** as
 | **Phase 0** | Project Foundation (C++17, CMake, Catch2, Executables, Docs) | **COMPLETE** | **PASSED** |
 | **Phase 1** | Basic Types + Pages + Disk Manager | **COMPLETE** | **PASSED** |
 | **Phase 2** | Records + Tables + Catalog | **COMPLETE** | **PASSED** |
-| **Phase 3** | SQL Lexer + Parser | IN PROGRESS | NOT STARTED |
-| **Phase 4** | Basic Query Execution | PENDING | NOT STARTED |
+| **Phase 3** | SQL Lexer + Parser | **COMPLETE** | **PASSED** |
+| **Phase 4** | Basic Query Execution | IN PROGRESS | NOT STARTED |
 | **Phase 5** | Query Features (ORDER BY, LIMIT, Aggregates, GROUP BY) | PENDING | NOT STARTED |
 | **Phase 6** | JOINs (Nested Loop Join, INNER / LEFT) | PENDING | NOT STARTED |
 | **Phase 7** | Buffer Pool (LRU, Pin/Unpin, Dirty Tracking) | PENDING | NOT STARTED |
@@ -42,15 +42,20 @@ This document tracks progress across all implementation phases of **ForgeDB** as
 
 ### Phase 2 — Records + Tables + Catalog
 * **Status**: **COMPLETE**
+* **Completion Gate**: **PASSED** (Table creation, record insertion, restart persistence verified)
+
+### Phase 3 — SQL Lexer + Parser
+* **Status**: **COMPLETE**
 * **Completion Gate**: **PASSED**
-  * `table_persistence_test`: Creates table -> inserts 80 rows across chained pages -> flushes & closes -> reopens database -> verifies catalog schema, and scans all rows matching exact values.
-  * All previous tests preserved and passed (1026 assertions in 16 test cases).
+  * Full statement parsing verified: `CREATE TABLE`, `DROP TABLE`, `CREATE INDEX`, `INSERT`, `SELECT`, `UPDATE`, `DELETE`, `BEGIN`, `COMMIT`, `ROLLBACK`.
+  * Precedence climbing expression parser verified (comparisons, arithmetic, logical operators).
+  * Syntax error diagnostics verified with informative error messages.
+  * All previous tests preserved and passed (1145 assertions in 19 test cases).
 * **What was Implemented**:
-  * `Record`: Serialized physical tuple format with null bitmaps and schema-based value extraction.
-  * `SlottedPage`: Bidirectional variable-length slotted page architecture on 4096-byte pages with slot reuse.
-  * `TableHeap`: Linked-page heap storage on disk, page allocation chaining, and full `TableIterator` for sequential scans.
-  * `Table`: Logical relation binding a name, schema, and `TableHeap`.
-  * `Catalog`: Persistent system catalog stored on disk page 0 with table metadata serialization and auto-loading on restart.
+  * `Token` and `TokenType` definitions with string representations.
+  * `Lexer`: Case-insensitive keywords, numbers, string literals with escape handling, comments, and operator tokenization.
+  * AST: Expression nodes (`Literal`, `ColumnRef`, `Binary`, `Unary`, `FunctionCall`, `Star`) and Statement nodes (`CreateTable`, `DropTable`, `CreateIndex`, `Insert`, `Select`, `Update`, `Delete`, `Transaction`).
+  * `Parser`: Recursive descent parser converting token streams into AST representation.
 * **Build Command**: `cmake --build build --config Debug`
 * **Test Command**: `ctest --test-dir build --output-on-failure` & `.\build\bin\forgedb_tests.exe`
-* **Test Results**: 16 test cases, 1026 assertions passed, 0 failures.
+* **Test Results**: 19 test cases, 1145 assertions passed, 0 failures.
