@@ -1,6 +1,9 @@
 ﻿add_executable(forgedb_tests
     test_main.cpp
     unit/common_test.cpp
+    unit/types_test.cpp
+    unit/disk_manager_test.cpp
+    storage/persistence_test.cpp
 )
 
 target_include_directories(forgedb_tests

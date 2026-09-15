@@ -1,6 +1,11 @@
 ﻿# Core static library for database engine components
 add_library(forgedb_core STATIC
     common/status.cpp
+    common/types.cpp
+    catalog/column.cpp
+    catalog/schema.cpp
+    storage/page/page.cpp
+    storage/disk/disk_manager.cpp
 )
 
 target_include_directories(forgedb_core
