@@ -10,6 +10,7 @@ public:
     Column() : name_(""), type_(TypeId::INVALID), length_(0), nullable_(true) {}
     Column(std::string name, TypeId type, bool nullable = true);
     Column(std::string name, TypeId type, uint32_t length, bool nullable = true);
+    Column(std::string name, TypeId type, int length, bool nullable = true);
 
     const std::string& GetName() const { return name_; }
     TypeId GetType() const { return type_; }

@@ -4,8 +4,12 @@ add_library(forgedb_core STATIC
     common/types.cpp
     catalog/column.cpp
     catalog/schema.cpp
+    catalog/catalog.cpp
     storage/page/page.cpp
+    storage/page/slotted_page.cpp
     storage/disk/disk_manager.cpp
+    storage/record/record.cpp
+    storage/table/table_heap.cpp
 )
 
 target_include_directories(forgedb_core

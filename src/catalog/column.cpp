@@ -29,6 +29,9 @@ Column::Column(std::string name, TypeId type, bool nullable)
 Column::Column(std::string name, TypeId type, uint32_t length, bool nullable)
     : name_(std::move(name)), type_(type), length_(length), nullable_(nullable) {}
 
+Column::Column(std::string name, TypeId type, int length, bool nullable)
+    : name_(std::move(name)), type_(type), length_(static_cast<uint32_t>(length)), nullable_(nullable) {}
+
 uint32_t Column::GetFixedSize() const {
     switch (type_) {
         case TypeId::BOOLEAN: return sizeof(bool);

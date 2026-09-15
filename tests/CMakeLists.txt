@@ -3,7 +3,12 @@
     unit/common_test.cpp
     unit/types_test.cpp
     unit/disk_manager_test.cpp
+    unit/record_test.cpp
+    unit/slotted_page_test.cpp
     storage/persistence_test.cpp
+    storage/table_heap_test.cpp
+    catalog/catalog_test.cpp
+    integration/table_persistence_test.cpp
 )
 
 target_include_directories(forgedb_tests
