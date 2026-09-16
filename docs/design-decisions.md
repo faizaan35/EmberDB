@@ -163,7 +163,22 @@
 * **Tradeoffs**: Minor binary size increase for formatting and CLI command dispatching.
 
 
+---
 
+## ADR-015: Native C++ HTTP REST API Server and JSON Serialization
 
-
+* **Context**: The database engine needs to expose an HTTP REST interface for remote clients, web user interfaces, and automated integration tooling, without compromising the core rule that all database functionality remains our own implementation.
+* **Decision**: Implement a native C++ HTTP server (`HttpServer`) using platform socket APIs (Winsock2 on Windows, POSIX sockets on Linux):
+  1. Socket management: `HttpServer` listens on a configurable host and port in a dedicated background accept thread. The listening socket employs a 500ms receive timeout (`SO_RCVTIMEO`) to unblock periodically and inspect the `is_running_` atomic flag, ensuring responsive and graceful shutdown.
+  2. Request Dispatch: Supports `GET /api/health`, `GET /api/tables`, `GET /api/schema/:table`, `POST /api/query`, and preflight `OPTIONS` for browser CORS compatibility (`Access-Control-Allow-Origin: *`, `Access-Control-Allow-Methods`, `Access-Control-Allow-Headers`).
+  3. JSON Serialization: Implemented lightweight JSON serialization helpers for query parameters, schema descriptors, row tuples, and formatted error messages without bringing in heavyweight external third-party dependencies.
+  4. Execution Pipeline: Incoming SQL queries are dispatched directly to the same `EmberDBInstance::ExecuteQuery` used by the CLI and integration tests.
+* **Why**:
+  - Keeps the network layer clean, lightweight, and completely separate from query parsing, planning, execution, and storage.
+  - Native socket implementation avoids adding external web framework dependencies while remaining 100% compliant with HTTP/1.1 REST specifications.
+  - Single database instance facade guarantees uniform behavior between terminal CLI and HTTP clients.
+* **Alternatives Considered**:
+  - Heavy external HTTP libraries (e.g., Boost.Beast, Crow, Drogon): Introduces complex external build dependencies contrary to the educational and clean C++17 focus of the project.
+  - Dedicated Python or Node sidecar bridge: Violates the requirement that the database engine itself provides its own HTTP endpoint in C++.
+* **Tradeoffs**: HTTP/1.1 keep-alive and chunked transfer are omitted in favor of simple connection-per-request / Content-Length messaging, which is perfectly suited for local database queries.
 

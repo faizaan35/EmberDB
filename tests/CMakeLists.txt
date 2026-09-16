@@ -22,6 +22,7 @@ add_executable(emberdb_tests
     concurrency/concurrency_test.cpp
     recovery/wal_test.cpp
     recovery/recovery_test.cpp
+    server/api_test.cpp
 )
 
 target_include_directories(emberdb_tests

@@ -279,9 +279,28 @@ This document tracks progress across all implementation phases of **EmberDB** as
 * **Test Command**: `ctest --test-dir build --output-on-failure` & `.\build\bin\emberdb_tests.exe`
 * **Test Results**: 49 test cases, 17,144 assertions passed, 0 failures.
 
-
-
-
+### Phase 15 — HTTP API
+* **Status**: **COMPLETE**
+* **Completion Gate**: **PASSED**
+  * All Phase 15 gate scenarios verified:
+    - Native cross-platform C++ HTTP server (`HttpServer`) using Winsock2 on Windows and POSIX sockets on Linux.
+    - Endpoints verified with live TCP socket communication and HTTP request/response parsing:
+      * `GET /api/health` returns JSON health status, version, and engine name (`{"status":"ok","version":"0.1.0","engine":"EmberDB"}`).
+      * `GET /api/tables` returns JSON array of catalog tables.
+      * `GET /api/schema/:table` returns detailed column metadata (names and types) or 404 if table does not exist.
+      * `POST /api/query` parses JSON payload `{"sql":"..."}`, executes statement through `EmberDBInstance::ExecuteQuery`, and returns execution time, affected row counts, column names, and row values. Returns formatted 400 Bad Request JSON on SQL parsing or execution errors.
+      * `OPTIONS /api/*` responds with CORS headers (`Access-Control-Allow-Origin: *`, allowed methods and headers) to allow web browser clients to connect without cross-origin blocking.
+    - Result equivalence: Queries executed through the HTTP API return identical data to queries executed via CLI or internal C++ API.
+    - Standalone server binary `emberdb_server` created for hosting the database engine over HTTP.
+  * All 51 test cases (17,182 assertions) passed with zero errors.
+* **What was Implemented**:
+  - `HttpServer`: Lightweight native non-blocking/timed HTTP server (`src/include/emberdb/server/http_server.h`, `src/server/http_server.cpp`) with route dispatch, HTTP header parsing, and JSON response generation.
+  - Integration with `EmberDBInstance`: Centralized query execution, catalog schema lookup, and JSON serialization of `Tuple` and `Value` results.
+  - Server executable in `src/server/server_main.cpp` supporting configurable host and port CLI flags (`--port <port>`, `--host <host>`, `--data-dir <dir>`).
+  - Unit and integration tests in `tests/server/api_test.cpp`.
+* **Build Command**: `cmake --build build --config Debug`
+* **Test Command**: `ctest --test-dir build --output-on-failure` & `.\build\bin\emberdb_tests.exe`
+* **Test Results**: 51 test cases, 17,182 assertions passed, 0 failures.
 
 
 

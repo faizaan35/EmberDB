@@ -39,6 +39,7 @@ add_library(emberdb_core STATIC
     recovery/log_manager.cpp
     recovery/recovery_manager.cpp
     emberdb.cpp
+    server/http_server.cpp
 )
 
 target_include_directories(emberdb_core
@@ -47,6 +48,10 @@ target_include_directories(emberdb_core
 )
 
 target_compile_features(emberdb_core PUBLIC cxx_std_17)
+
+if(WIN32)
+    target_link_libraries(emberdb_core PUBLIC ws2_32)
+endif()
 
 # CLI executable
 add_executable(emberdb
@@ -59,3 +64,16 @@ target_link_libraries(emberdb
 )
 
 target_compile_features(emberdb PRIVATE cxx_std_17)
+
+# HTTP REST Server executable
+add_executable(emberdb_server
+    server/server_main.cpp
+)
+
+target_link_libraries(emberdb_server
+    PRIVATE
+        emberdb_core
+)
+
+target_compile_features(emberdb_server PRIVATE cxx_std_17)
+
