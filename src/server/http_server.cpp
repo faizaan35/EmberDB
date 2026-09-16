@@ -3,6 +3,8 @@
 #include <sstream>
 #include <vector>
 #include <cstring>
+#include <filesystem>
+#include <fstream>
 
 #ifdef _WIN32
     #include <winsock2.h>
@@ -359,6 +361,33 @@ std::string HttpServer::HandleRequest(const std::string& method, const std::stri
         std::string json = QueryResultToJson(res);
         int code = res.success ? 200 : 400;
         return BuildHttpResponse(code, res.success ? "OK" : "Bad Request", "application/json", json);
+    }
+
+    // Static Web UI assets (web/dist)
+    if (method == "GET") {
+        std::string rel_path = path;
+        if (rel_path == "/" || rel_path.empty()) {
+            rel_path = "/index.html";
+        }
+        std::vector<std::string> base_candidates = {"web/dist", "../web/dist", "../../web/dist"};
+        for (const auto& base : base_candidates) {
+            std::error_code ec;
+            std::filesystem::path target = std::filesystem::path(base + rel_path);
+            if (std::filesystem::exists(target, ec) && !std::filesystem::is_directory(target, ec)) {
+                std::ifstream f(target, std::ios::binary);
+                if (f) {
+                    std::string content((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+                    std::string content_type = "text/plain";
+                    auto ext = target.extension().string();
+                    if (ext == ".html") content_type = "text/html; charset=utf-8";
+                    else if (ext == ".js") content_type = "application/javascript; charset=utf-8";
+                    else if (ext == ".css") content_type = "text/css; charset=utf-8";
+                    else if (ext == ".svg") content_type = "image/svg+xml";
+                    else if (ext == ".json") content_type = "application/json";
+                    return BuildHttpResponse(200, "OK", content_type, content);
+                }
+            }
+        }
     }
 
     return BuildHttpResponse(404, "Not Found", "application/json",

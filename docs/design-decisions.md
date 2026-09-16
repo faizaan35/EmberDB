@@ -182,3 +182,20 @@
   - Dedicated Python or Node sidecar bridge: Violates the requirement that the database engine itself provides its own HTTP endpoint in C++.
 * **Tradeoffs**: HTTP/1.1 keep-alive and chunked transfer are omitted in favor of simple connection-per-request / Content-Length messaging, which is perfectly suited for local database queries.
 
+---
+
+## ADR-016: React + Vite Web SQL Console and Embedded Static Asset Hosting
+
+* **Context**: The system specification (`AGENTS.md`) requires a browser-based SQL console exposing database functionality (query execution, schema inspection, query history, timings, results, errors) while maintaining an intentionally lean and simple frontend that does not detract from core systems engineering.
+* **Decision**: Implement a clean React 18 + Vite frontend in `web/` and embed static asset serving into `HttpServer`:
+  1. Frontend Architecture: Single-page React application (`App.jsx`) with responsive layout, SQL editor with `Ctrl+Enter` shortcut, sample query templates, catalog table and column schema inspection, tabular result rendering with null handling, error banner display, and query history preserved in browser `localStorage`.
+  2. Vite Build Pipeline: Fast bundle generation outputting static assets to `web/dist`.
+  3. Static Hosting in `HttpServer`: `HttpServer` checks for `web/dist/index.html` and static assets (`/assets/*.js`, `/assets/*.css`), allowing users to run `emberdb_server` and directly access the complete web console at `http://localhost:8080/` without requiring a separate Node.js dev server running simultaneously.
+* **Why**:
+  - Provides a self-contained local developer experience: starting the EmberDB server automatically serves the GUI console.
+  - Zero coupling between frontend code and database engine internals; communication occurs exclusively via standard REST endpoints (`/api/query`, `/api/tables`, `/api/schema/:table`, `/api/health`).
+* **Alternatives Considered**:
+  - Running a separate Node development server permanently: Adds extra operational overhead for users who simply want to inspect their database from a browser.
+  - Server-side rendered HTML (e.g. templates): Less interactive and makes future frontend enhancements harder.
+* **Tradeoffs**: Requires a one-time `npm run build` during distribution to populate `web/dist`.
+

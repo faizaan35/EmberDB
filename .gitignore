@@ -40,3 +40,8 @@ data/*.wal
 # Operating system files
 .DS_Store
 Thumbs.db
+
+# Web dependencies and build
+web/node_modules/
+web/dist/
+web/.vite/

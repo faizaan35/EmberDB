@@ -46,6 +46,14 @@ TEST_CASE("HTTP API: Health, Tables, Schema, and Query Endpoints", "[api]") {
         REQUIRE(res.find("Access-Control-Allow-Origin: *") != std::string::npos);
     }
 
+    // 1b. GET / (Static Web UI)
+    {
+        std::string res = server.HandleRequest("GET", "/", "");
+        REQUIRE(res.find("HTTP/1.1 200 OK") != std::string::npos);
+        REQUIRE(res.find("text/html") != std::string::npos);
+        REQUIRE(res.find("EmberDB") != std::string::npos);
+    }
+
     // 2. CORS Preflight: OPTIONS /api/query
     {
         std::string res = server.HandleRequest("OPTIONS", "/api/query", "");
@@ -170,6 +178,108 @@ TEST_CASE("HTTP API: Live TCP Socket Communication", "[api]") {
 
     server.Stop();
     REQUIRE_FALSE(server.IsRunning());
+
+    db.Close();
+    CleanupApiDir();
+}
+
+TEST_CASE("Phase 16 Gate: Web Console Full Query Execution Over HTTP API", "[api][web]") {
+    CleanupApiDir();
+
+    EmberDBInstance db(TEST_API_DIR);
+    REQUIRE(db.Open().ok());
+
+    HttpServer server(&db, 18081);
+
+    // 1. CREATE TABLE users & orders
+    {
+        std::string body = "{\"sql\":\"CREATE TABLE users (id INT, name VARCHAR, age INT);\"}";
+        std::string res = server.HandleRequest("POST", "/api/query", body);
+        REQUIRE(res.find("\"success\":true") != std::string::npos);
+    }
+    {
+        std::string body = "{\"sql\":\"CREATE TABLE orders (id INT, user_id INT, amount INT);\"}";
+        std::string res = server.HandleRequest("POST", "/api/query", body);
+        REQUIRE(res.find("\"success\":true") != std::string::npos);
+    }
+
+    // 2. INSERT into users & orders
+    {
+        server.HandleRequest("POST", "/api/query", "{\"sql\":\"INSERT INTO users VALUES (1, 'Faizaan', 23);\"}");
+        server.HandleRequest("POST", "/api/query", "{\"sql\":\"INSERT INTO users VALUES (2, 'Ahmed', 25);\"}");
+        server.HandleRequest("POST", "/api/query", "{\"sql\":\"INSERT INTO users VALUES (3, 'Sara', 23);\"}");
+        server.HandleRequest("POST", "/api/query", "{\"sql\":\"INSERT INTO users VALUES (4, 'Zayd', 30);\"}");
+
+        server.HandleRequest("POST", "/api/query", "{\"sql\":\"INSERT INTO orders VALUES (101, 1, 500);\"}");
+        server.HandleRequest("POST", "/api/query", "{\"sql\":\"INSERT INTO orders VALUES (102, 1, 300);\"}");
+        server.HandleRequest("POST", "/api/query", "{\"sql\":\"INSERT INTO orders VALUES (103, 2, 750);\"}");
+    }
+
+    // 3. SELECT with WHERE
+    {
+        std::string body = "{\"sql\":\"SELECT id, name FROM users WHERE age = 23 ORDER BY id;\"}";
+        std::string res = server.HandleRequest("POST", "/api/query", body);
+        REQUIRE(res.find("\"success\":true") != std::string::npos);
+        REQUIRE(res.find("Faizaan") != std::string::npos);
+        REQUIRE(res.find("Sara") != std::string::npos);
+        REQUIRE(res.find("Ahmed") == std::string::npos);
+    }
+
+    // 4. UPDATE
+    {
+        std::string body = "{\"sql\":\"UPDATE users SET age = 24 WHERE id = 1;\"}";
+        std::string res = server.HandleRequest("POST", "/api/query", body);
+        REQUIRE(res.find("\"success\":true") != std::string::npos);
+        REQUIRE(res.find("\"rowsAffected\":1") != std::string::npos);
+
+        // Verify updated value
+        std::string check = server.HandleRequest("POST", "/api/query", "{\"sql\":\"SELECT age FROM users WHERE id = 1;\"}");
+        REQUIRE(check.find("[[24]]") != std::string::npos);
+    }
+
+    // 5. DELETE
+    {
+        std::string body = "{\"sql\":\"DELETE FROM users WHERE id = 4;\"}";
+        std::string res = server.HandleRequest("POST", "/api/query", body);
+        REQUIRE(res.find("\"success\":true") != std::string::npos);
+        REQUIRE(res.find("\"rowsAffected\":1") != std::string::npos);
+
+        // Verify row deleted
+        std::string check = server.HandleRequest("POST", "/api/query", "{\"sql\":\"SELECT * FROM users WHERE id = 4;\"}");
+        REQUIRE(check.find("\"rows\":[]") != std::string::npos);
+    }
+
+    // 6. JOIN (INNER JOIN)
+    {
+        std::string body = "{\"sql\":\"SELECT users.name, orders.amount FROM users INNER JOIN orders ON users.id = orders.user_id ORDER BY orders.amount;\"}";
+        std::string res = server.HandleRequest("POST", "/api/query", body);
+        REQUIRE(res.find("\"success\":true") != std::string::npos);
+        REQUIRE(res.find("Faizaan") != std::string::npos);
+        REQUIRE(res.find("Ahmed") != std::string::npos);
+        REQUIRE(res.find("300") != std::string::npos);
+        REQUIRE(res.find("500") != std::string::npos);
+        REQUIRE(res.find("750") != std::string::npos);
+    }
+
+    // 7. GROUP BY + Aggregations (COUNT)
+    {
+        std::string body = "{\"sql\":\"SELECT age, COUNT(*) FROM users GROUP BY age ORDER BY age;\"}";
+        std::string res = server.HandleRequest("POST", "/api/query", body);
+        REQUIRE(res.find("\"success\":true") != std::string::npos);
+        REQUIRE(res.find("\"columns\":[\"age\",\"COUNT(*)\"]") != std::string::npos);
+    }
+
+    // 8. Catalog introspection via API
+    {
+        std::string res = server.HandleRequest("GET", "/api/tables", "");
+        REQUIRE(res.find("\"users\"") != std::string::npos);
+        REQUIRE(res.find("\"orders\"") != std::string::npos);
+
+        std::string schema_res = server.HandleRequest("GET", "/api/schema/users", "");
+        REQUIRE(schema_res.find("\"name\":\"id\"") != std::string::npos);
+        REQUIRE(schema_res.find("\"name\":\"name\"") != std::string::npos);
+        REQUIRE(schema_res.find("\"name\":\"age\"") != std::string::npos);
+    }
 
     db.Close();
     CleanupApiDir();

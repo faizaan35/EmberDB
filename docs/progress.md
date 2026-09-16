@@ -302,5 +302,30 @@ This document tracks progress across all implementation phases of **EmberDB** as
 * **Test Command**: `ctest --test-dir build --output-on-failure` & `.\build\bin\emberdb_tests.exe`
 * **Test Results**: 51 test cases, 17,182 assertions passed, 0 failures.
 
-
-
+### Phase 16 — React Web Interface
+* **Status**: **COMPLETE**
+* **Completion Gate**: **PASSED**
+  * All Phase 16 gate scenarios verified:
+    - Built responsive, clean React + Vite SQL console application in `web/` directory.
+    - Verified complete end-to-end execution of all required SQL statement types over HTTP API into the database engine:
+      * `CREATE TABLE`: Created `users` and `orders` tables.
+      * `INSERT`: Populated records across multiple tables.
+      * `SELECT`: Filtered and projected records with `WHERE` and `ORDER BY`.
+      * `UPDATE`: Modified rows and validated updated values.
+      * `DELETE`: Removed records and validated empty sets.
+      * `JOIN`: Inner join between `users` and `orders` on foreign key predicate.
+      * `GROUP BY`: Grouped aggregations with `COUNT(*)`.
+    - Catalog inspection: Interactive sidebar listing tables (`GET /api/tables`) and column schema details (`GET /api/schema/:table`).
+    - Execution metrics: Displays execution time (ms), rows returned, and rows affected.
+    - Error display: Clear error banner showing database-level parser and runtime errors.
+    - Query history: Preserves executed statements in `localStorage` with re-run on click.
+    - Static UI hosting: `emberdb_server` serves the built React web application directly from `web/dist` on `GET /` and `/assets/*`.
+    - Production build: `npm run build` cleanly compiled Vite bundle with zero errors or warnings.
+  * All 52 test cases (17,208 assertions) passed with zero errors.
+* **What was Implemented**:
+  - React 18 + Vite frontend in `web/` (`package.json`, `vite.config.js`, `index.html`, `src/App.jsx`, `src/index.css`).
+  - Static asset serving within `HttpServer` (`src/server/http_server.cpp`) to serve the built Web UI directly from `web/dist`.
+  - Phase 16 completion gate test suite in `tests/server/api_test.cpp`.
+* **Build Command**: `cd web ; npm run build` & `cmake --build build --config Debug`
+* **Test Command**: `ctest --test-dir build --output-on-failure` & `.\build\bin\emberdb_tests.exe`
+* **Test Results**: 52 test cases, 17,208 assertions passed, 0 failures.
