@@ -8,13 +8,27 @@
 #include "emberdb/execution/executor/nested_loop_join_executor.h"
 #include "emberdb/execution/executor/index_scan_executor.h"
 #include "emberdb/execution/expressions/expression_evaluator.h"
+#include "emberdb/recovery/log_manager.h"
 #include <iomanip>
 #include <sstream>
 #include <algorithm>
 
 namespace emberdb {
 
-ExecutionEngine::ExecutionEngine(Catalog* catalog) : catalog_(catalog), planner_(catalog) {}
+ExecutionEngine::ExecutionEngine(Catalog* catalog, LogManager* log_mgr)
+    : catalog_(catalog), log_mgr_(log_mgr), planner_(catalog), txn_mgr_(log_mgr) {
+    if (catalog_ && catalog_->GetBufferPoolManager() && log_mgr_) {
+        catalog_->GetBufferPoolManager()->SetLogManager(log_mgr_);
+    }
+}
+
+void ExecutionEngine::SetLogManager(LogManager* log_mgr) {
+    log_mgr_ = log_mgr;
+    txn_mgr_.SetLogManager(log_mgr);
+    if (catalog_ && catalog_->GetBufferPoolManager()) {
+        catalog_->GetBufferPoolManager()->SetLogManager(log_mgr);
+    }
+}
 
 QueryResult ExecutionEngine::Execute(const Statement* stmt, Transaction* txn) {
     if (!stmt) {
@@ -164,6 +178,23 @@ QueryResult ExecutionEngine::ExecuteInsert(const InsertStatement* stmt, Transact
 
         if (txn != nullptr) {
             txn->AppendTableWrite({TableWriteType::INSERT, stmt->GetTableName(), record.GetRID(), Record(), record});
+        }
+
+        if (log_mgr_) {
+            txn_id_t tid = txn ? txn->GetTxnId() : 0;
+            lsn_t prev_lsn = txn ? txn->GetPrevLSN() : INVALID_LSN;
+            LogRecord log_rec = LogRecord::CreateInsert(tid, prev_lsn, stmt->GetTableName(), record.GetRID(), record);
+            lsn_t lsn = log_mgr_->AppendRecord(log_rec);
+            if (txn) {
+                txn->SetPrevLSN(lsn);
+            }
+            if (catalog_ && catalog_->GetBufferPoolManager()) {
+                Page* p = catalog_->GetBufferPoolManager()->FetchPage(record.GetRID().page_id);
+                if (p) {
+                    p->SetLSN(lsn);
+                    catalog_->GetBufferPoolManager()->UnpinPage(record.GetRID().page_id, true);
+                }
+            }
         }
 
         ++rows_inserted;
@@ -453,6 +484,23 @@ QueryResult ExecutionEngine::ExecuteUpdate(const UpdateStatement* stmt, Transact
             txn->AppendTableWrite({TableWriteType::UPDATE, stmt->GetTableName(), curr_rid, current_record, new_record});
         }
 
+        if (log_mgr_) {
+            txn_id_t tid = txn ? txn->GetTxnId() : 0;
+            lsn_t prev_lsn = txn ? txn->GetPrevLSN() : INVALID_LSN;
+            LogRecord log_rec = LogRecord::CreateUpdate(tid, prev_lsn, stmt->GetTableName(), curr_rid, current_record, new_record);
+            lsn_t lsn = log_mgr_->AppendRecord(log_rec);
+            if (txn) {
+                txn->SetPrevLSN(lsn);
+            }
+            if (catalog_ && catalog_->GetBufferPoolManager()) {
+                Page* p = catalog_->GetBufferPoolManager()->FetchPage(curr_rid.page_id);
+                if (p) {
+                    p->SetLSN(lsn);
+                    catalog_->GetBufferPoolManager()->UnpinPage(curr_rid.page_id, true);
+                }
+            }
+        }
+
         ++updated_count;
     }
 
@@ -494,6 +542,23 @@ QueryResult ExecutionEngine::ExecuteDelete(const DeleteStatement* stmt, Transact
 
         if (txn != nullptr) {
             txn->AppendTableWrite({TableWriteType::DELETE, stmt->GetTableName(), r, before_rec, Record()});
+        }
+
+        if (log_mgr_) {
+            txn_id_t tid = txn ? txn->GetTxnId() : 0;
+            lsn_t prev_lsn = txn ? txn->GetPrevLSN() : INVALID_LSN;
+            LogRecord log_rec = LogRecord::CreateDelete(tid, prev_lsn, stmt->GetTableName(), r, before_rec);
+            lsn_t lsn = log_mgr_->AppendRecord(log_rec);
+            if (txn) {
+                txn->SetPrevLSN(lsn);
+            }
+            if (catalog_ && catalog_->GetBufferPoolManager()) {
+                Page* p = catalog_->GetBufferPoolManager()->FetchPage(r.page_id);
+                if (p) {
+                    p->SetLSN(lsn);
+                    catalog_->GetBufferPoolManager()->UnpinPage(r.page_id, true);
+                }
+            }
         }
 
         ++deleted_count;

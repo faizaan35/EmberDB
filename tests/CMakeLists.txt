@@ -20,6 +20,7 @@ add_executable(emberdb_tests
     planner/planner_test.cpp
     transaction/transaction_test.cpp
     concurrency/concurrency_test.cpp
+    recovery/wal_test.cpp
 )
 
 target_include_directories(emberdb_tests

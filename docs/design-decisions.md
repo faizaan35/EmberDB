@@ -110,5 +110,23 @@
   - Lock-free data structures: High complexity, difficult to maintain, and prone to subtle ABA and memory-ordering bugs.
 * **Tradeoffs**: Mutex acquisition overhead on critical paths; strict lock acquisition order must be maintained to avoid deadlocks.
 
+---
+
+## ADR-012: Write-Ahead Logging (WAL) Architecture and LSN Invariant Enforcement
+
+* **Context**: Relational databases must uphold durability and prepare for crash recovery. The core WAL protocol dictates that log records describing data mutations must reach persistent storage *before* the corresponding modified database page is written to disk.
+* **Decision**: Implement `LogRecord`, `LogManager`, and explicit integration with `BufferPoolManager`:
+  1. `LogRecord`: Binary-serializable structure with a 32-byte header (`size`, `lsn`, `prev_lsn`, `txn_id`, `type`) and payload supporting `BEGIN`, `COMMIT`, `ABORT`, `INSERT`, `UPDATE`, and `DELETE`. Records capture target table names, RIDs, and bit-exact before/after tuple images.
+  2. `LogManager`: Coordinates a 64KB append buffer, assigns monotonically increasing `lsn_t` values, and flushes log records to an append-only WAL file (`.wal`). Reopening an existing WAL scans and restores `next_lsn` to continue without sequence reset.
+  3. WAL Invariant Enforcement: `BufferPoolManager` holds a pointer to `LogManager`. Before any dirty page is written to disk via `disk_mgr_->WritePage()`, BPM invokes `log_mgr_->FlushLogBufferUpTo(page.GetLSN())`, guaranteeing that WAL disk writes strictly precede database page disk writes.
+  4. Transaction durability: `TransactionManager::Commit()` appends a `COMMIT` record and forces a synchronous flush up to the commit LSN.
+* **Why**:
+  - Enforcing the WAL invariant inside `BufferPoolManager` guarantees correctness regardless of whether page eviction occurs due to LRU replacement or explicit `FlushAllPages()`.
+  - Transaction undo chains (`prev_lsn`) allow fast backward traversal during aborts or recovery without scanning unrelated records.
+* **Alternatives Considered**:
+  - Direct synchronous disk write on every log append: Degrades throughput due to excessive small I/O syscalls. An in-memory buffer with forced flush on commit and page flush provides high performance while guaranteeing ACID durability.
+* **Tradeoffs**: Memory overhead of 64KB log buffer and minor disk write amplification from WAL records.
+
+
 
 

@@ -49,9 +49,13 @@ public:
         table_writes_.clear();
     }
 
+    lsn_t GetPrevLSN() const { return prev_lsn_; }
+    void SetPrevLSN(lsn_t lsn) { prev_lsn_ = lsn; }
+
 private:
     txn_id_t txn_id_{INVALID_TXN_ID};
     TransactionState state_{TransactionState::ACTIVE};
+    lsn_t prev_lsn_{INVALID_LSN};
     std::vector<TableWriteRecord> table_writes_;
 };
 

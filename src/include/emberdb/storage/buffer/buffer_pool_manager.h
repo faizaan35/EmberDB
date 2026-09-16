@@ -34,11 +34,16 @@ public:
     bool IsPageInPool(page_id_t page_id);
     int GetPinCount(page_id_t page_id);
 
+    // WAL integration
+    void SetLogManager(class LogManager* log_mgr) { log_mgr_ = log_mgr; }
+    class LogManager* GetLogManager() const { return log_mgr_; }
+
 private:
     bool FindAvailableFrame(frame_id_t* frame_id);
 
     size_t pool_size_;
     DiskManager* disk_mgr_;
+    class LogManager* log_mgr_{nullptr};
     std::vector<Page> pages_;
     std::unordered_map<page_id_t, frame_id_t> page_table_;
     std::unique_ptr<Replacer> replacer_;

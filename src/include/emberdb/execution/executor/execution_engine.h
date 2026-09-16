@@ -24,7 +24,7 @@ struct QueryResult {
 
 class ExecutionEngine {
 public:
-    explicit ExecutionEngine(Catalog* catalog);
+    explicit ExecutionEngine(Catalog* catalog, class LogManager* log_mgr = nullptr);
 
     QueryResult Execute(const Statement* stmt, Transaction* txn = nullptr);
 
@@ -33,6 +33,9 @@ public:
 
     TransactionManager* GetTransactionManager() { return &txn_mgr_; }
     Transaction* GetActiveTransaction() const { return active_txn_.get(); }
+
+    void SetLogManager(class LogManager* log_mgr);
+    class LogManager* GetLogManager() const { return log_mgr_; }
 
 private:
     QueryResult ExecuteCreateTable(const CreateTableStatement* stmt);
@@ -46,6 +49,7 @@ private:
     QueryResult ExecuteExplain(const ExplainStatement* stmt);
 
     Catalog* catalog_;
+    class LogManager* log_mgr_{nullptr};
     Planner planner_;
     TransactionManager txn_mgr_;
     std::shared_ptr<Transaction> active_txn_{nullptr};

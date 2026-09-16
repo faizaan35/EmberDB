@@ -11,8 +11,11 @@ namespace emberdb {
 
 class TransactionManager {
 public:
-    TransactionManager() = default;
+    explicit TransactionManager(class LogManager* log_mgr = nullptr) : log_mgr_(log_mgr) {}
     ~TransactionManager() = default;
+
+    void SetLogManager(class LogManager* log_mgr) { log_mgr_ = log_mgr; }
+    class LogManager* GetLogManager() const { return log_mgr_; }
 
     std::shared_ptr<Transaction> Begin();
     Status Commit(Transaction* txn);
@@ -22,6 +25,7 @@ public:
 
 private:
     std::mutex latch_;
+    class LogManager* log_mgr_{nullptr};
     txn_id_t next_txn_id_{1};
     std::unordered_map<txn_id_t, std::shared_ptr<Transaction>> txn_map_;
 };

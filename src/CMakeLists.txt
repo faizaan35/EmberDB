@@ -35,6 +35,8 @@ add_library(emberdb_core STATIC
     execution/executor/index_scan_executor.cpp
     transaction/transaction.cpp
     transaction/transaction_manager.cpp
+    recovery/log_record.cpp
+    recovery/log_manager.cpp
 )
 
 target_include_directories(emberdb_core

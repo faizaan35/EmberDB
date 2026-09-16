@@ -1,4 +1,4 @@
-﻿# Build directories
+# Build directories
 build/
 cmake-build-*/
 bin/
@@ -29,6 +29,9 @@ Makefile
 *.sublime-workspace
 
 # Runtime data files
+*.db
+*.log
+*.wal
 data/*.db
 data/*.log
 data/*.wal

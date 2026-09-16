@@ -1,4 +1,5 @@
 #include "emberdb/storage/buffer/buffer_pool_manager.h"
+#include "emberdb/recovery/log_manager.h"
 
 namespace emberdb {
 
@@ -32,6 +33,9 @@ bool BufferPoolManager::FindAvailableFrame(frame_id_t* frame_id) {
     if (replacer_->Victim(frame_id)) {
         Page& victim_page = pages_[*frame_id];
         if (victim_page.IsDirty()) {
+            if (log_mgr_ && victim_page.GetLSN() != INVALID_LSN) {
+                log_mgr_->FlushLogBufferUpTo(victim_page.GetLSN());
+            }
             disk_mgr_->WritePage(victim_page.GetPageId(), victim_page.GetData());
             victim_page.SetDirty(false);
         }
@@ -135,8 +139,13 @@ bool BufferPoolManager::FlushPage(page_id_t page_id) {
     }
 
     frame_id_t fid = it->second;
-    disk_mgr_->WritePage(page_id, pages_[fid].GetData());
-    pages_[fid].SetDirty(false);
+    if (pages_[fid].IsDirty()) {
+        if (log_mgr_ && pages_[fid].GetLSN() != INVALID_LSN) {
+            log_mgr_->FlushLogBufferUpTo(pages_[fid].GetLSN());
+        }
+        disk_mgr_->WritePage(page_id, pages_[fid].GetData());
+        pages_[fid].SetDirty(false);
+    }
     return true;
 }
 
@@ -144,6 +153,9 @@ void BufferPoolManager::FlushAllPages() {
     std::lock_guard<std::mutex> lock(mutex_);
     for (const auto& [pid, fid] : page_table_) {
         if (pages_[fid].IsDirty()) {
+            if (log_mgr_ && pages_[fid].GetLSN() != INVALID_LSN) {
+                log_mgr_->FlushLogBufferUpTo(pages_[fid].GetLSN());
+            }
             disk_mgr_->WritePage(pid, pages_[fid].GetData());
             pages_[fid].SetDirty(false);
         }

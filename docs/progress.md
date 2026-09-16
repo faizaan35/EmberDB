@@ -20,7 +20,7 @@ This document tracks progress across all implementation phases of **EmberDB** as
 | **Phase 9** | Query Planner + Index Scan | **COMPLETE** | **PASSED** |
 | **Phase 10** | Transactions (BEGIN, COMMIT, ROLLBACK) | **COMPLETE** | **PASSED** |
 | **Phase 11** | Concurrency (Synchronization, Thread Safety) | **COMPLETE** | **PASSED** |
-| **Phase 12** | Write-Ahead Logging (WAL, LSN, Log Records) | PENDING | NOT STARTED |
+| **Phase 12** | Write-Ahead Logging (WAL, LSN, Log Records) | **COMPLETE** | **PASSED** |
 | **Phase 13** | Crash Recovery (Redo, Undo, Checkpointing) | PENDING | NOT STARTED |
 | **Phase 14** | CLI Polish (Interactive REPL, Meta Commands) | PENDING | NOT STARTED |
 | **Phase 15** | HTTP API (C++ REST endpoints) | PENDING | NOT STARTED |
@@ -212,6 +212,28 @@ This document tracks progress across all implementation phases of **EmberDB** as
 * **Build Command**: `cmake --build build --config Debug`
 * **Test Command**: `ctest --test-dir build --output-on-failure` & `.\build\bin\emberdb_tests.exe`
 * **Test Results**: 40 test cases, 16,971 assertions passed, 0 failures.
+
+### Phase 12 — Write-Ahead Logging (WAL)
+* **Status**: **COMPLETE**
+* **Completion Gate**: **PASSED**
+  * All Phase 12 gate scenarios verified:
+    - `LogRecord` binary serialization & deserialization across all record variants (`BEGIN`, `COMMIT`, `ABORT`, `INSERT`, `UPDATE`, `DELETE`) with exact payload reconstruction.
+    - Monotonically increasing LSN assignment and tracking across appends.
+    - WAL buffer management with on-demand and size-triggered flushing to disk.
+    - LSN persistence across restart: reopening an existing WAL continues monotonically from the highest recorded LSN.
+    - WAL rule invariant ("log first, data page later") strictly enforced: `BufferPoolManager` flushes WAL records up to the dirty page LSN before writing the database page to disk.
+    - `ExecutionEngine` and `TransactionManager` transaction integration: `BEGIN`, mutations, and `COMMIT` are logged into the WAL with backward `prev_lsn` chaining and forced WAL flush on commit.
+  * All 45 test cases (17,057 assertions) passed with zero errors.
+* **What was Implemented**:
+  - `LogRecord`: Binary-serializable struct with 32-byte header, storing transaction ID, LSN, previous LSN, record type, target table, RID, and before/after images.
+  - `LogManager`: Thread-safe WAL subsystem managing a 64KB append buffer, assigning LSNs, flushing records to an append-only `.wal` file, and scanning records on startup.
+  - `BufferPoolManager` WAL protocol enforcement: wired `FlushLogBufferUpTo(page->GetLSN())` prior to any dirty page write to disk.
+  - `TransactionManager` & `ExecutionEngine` WAL integration: automatic logging of `BEGIN`, `COMMIT`, `ABORT`, `INSERT`, `UPDATE`, and `DELETE` records with page LSN stamping.
+  - Comprehensive WAL test suite in `tests/recovery/wal_test.cpp`.
+* **Build Command**: `cmake --build build --config Debug`
+* **Test Command**: `ctest --test-dir build --output-on-failure` & `.\build\bin\emberdb_tests.exe`
+* **Test Results**: 45 test cases, 17,057 assertions passed, 0 failures.
+
 
 
 
