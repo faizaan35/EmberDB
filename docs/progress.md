@@ -22,7 +22,7 @@ This document tracks progress across all implementation phases of **EmberDB** as
 | **Phase 11** | Concurrency (Synchronization, Thread Safety) | **COMPLETE** | **PASSED** |
 | **Phase 12** | Write-Ahead Logging (WAL, LSN, Log Records) | **COMPLETE** | **PASSED** |
 | **Phase 13** | Crash Recovery (Redo, Undo, Checkpointing) | **COMPLETE** | **PASSED** |
-| **Phase 14** | CLI Polish (Interactive REPL, Meta Commands) | PENDING | NOT STARTED |
+| **Phase 14** | CLI Polish (Interactive REPL, Meta Commands) | **COMPLETE** | **PASSED** |
 | **Phase 15** | HTTP API (C++ REST endpoints) | PENDING | NOT STARTED |
 | **Phase 16** | React Web Interface (SQL Console) | PENDING | NOT STARTED |
 | **Phase 17** | Integration + Final Hardening | PENDING | NOT STARTED |
@@ -252,6 +252,33 @@ This document tracks progress across all implementation phases of **EmberDB** as
 * **Build Command**: `cmake --build build --config Debug`
 * **Test Command**: `ctest --test-dir build --output-on-failure` & `.\build\bin\emberdb_tests.exe`
 * **Test Results**: 49 test cases, 17,144 assertions passed, 0 failures.
+
+### Phase 14 — CLI Polish
+* **Status**: **COMPLETE**
+* **Completion Gate**: **PASSED**
+  * All Phase 14 gate scenarios verified:
+    - Interactive shell with multi-line query editing and continuation prompt (`   ...> `).
+    - Single-line SQL comment filtering (`-- ...`).
+    - Full suite of meta-commands:
+      * `.help`: command descriptions and usage.
+      * `.tables`: catalog table listing.
+      * `.schema [table]`: clean column name and type alignment matching AGENTS.md format.
+      * `.indexes [table]`: secondary index introspection on tables.
+      * `.stats`: engine statistics (table counts, buffer pool frames, WAL LSN tracking).
+      * `.history`: in-session query history.
+      * `.version`: engine version.
+      * `.exit`, `.quit`: graceful shutdown with clean checkpoint.
+    - One-shot headless execution via `-c "<sql>"` / `--command "<sql>"` verified end-to-end for automated workflows.
+    - Clean lifecycle orchestration backed by `EmberDBInstance`.
+  * All 49 test cases (17,144 assertions) passed with zero errors.
+* **What was Implemented**:
+  - Interactive REPL in `src/main.cpp` connected directly to `EmberDBInstance`.
+  - Schema, index, statistics, and history display routines with formatted output.
+  - Multi-line buffer accumulator and command-line argument parser.
+* **Build Command**: `cmake --build build --config Debug`
+* **Test Command**: `ctest --test-dir build --output-on-failure` & `.\build\bin\emberdb_tests.exe`
+* **Test Results**: 49 test cases, 17,144 assertions passed, 0 failures.
+
 
 
 

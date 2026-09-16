@@ -146,6 +146,23 @@
   - Re-executing SQL text: Non-deterministic and unable to preserve physical record identifiers (RIDs) and secondary index linkages.
 * **Tradeoffs**: Recovery time scales with the number of log records since the last checkpoint.
 
+---
+
+## ADR-014: Unified Database Instance and Interactive CLI Shell
+
+* **Context**: The database engine consists of multiple cooperating subsystems (`DiskManager`, `BufferPoolManager`, `Catalog`, `LogManager`, `RecoveryManager`, `ExecutionEngine`). Exposing an accessible CLI shell and programmatic API requires a cohesive facade that manages system lifecycle, crash recovery on startup, and clean checkpoints on shutdown.
+* **Decision**: Implement `EmberDBInstance` as the top-level orchestrator and polish the CLI REPL in `src/main.cpp`:
+  1. `EmberDBInstance`: Encapsulates database directory paths, instantiates all internal layers, executes `RecoveryManager::Recover()` automatically if an unclean shutdown is detected, and records a clean shutdown checkpoint upon `Close()`.
+  2. Interactive CLI REPL: Supports multi-line input (`   ...> ` continuation prompt), SQL comment stripping, formatted ASCII output with execution timings, and shell meta-commands (`.tables`, `.schema [table]`, `.indexes [table]`, `.stats`, `.history`, `.version`, `.help`, `.exit`).
+  3. Non-interactive script execution: Supports `-c "<sql>"` / `--command "<sql>"` flag for scripting, automated testing, and CI pipelines without terminal interactivity.
+* **Why**:
+  - Encapsulating the engine inside `EmberDBInstance` guarantees that the CLI, HTTP API server, and automated integration tests interact with the exact same database lifecycle.
+  - One-shot command execution enables headless verification without third-party CLI automation tools.
+* **Alternatives Considered**:
+  - Independent subsystem instantiation in `main.cpp`: Leaves lifecycle coordination ad-hoc, increasing risk of forgotten buffer flushes or skipped recovery steps.
+* **Tradeoffs**: Minor binary size increase for formatting and CLI command dispatching.
+
+
 
 
 
