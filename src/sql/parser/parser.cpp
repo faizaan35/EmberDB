@@ -376,11 +376,13 @@ Result<std::unique_ptr<Statement>> Parser::ParseDelete() {
 
 Result<std::unique_ptr<Statement>> Parser::ParseTransaction() {
     if (Match(TokenType::KEYWORD_BEGIN)) {
-        Match(TokenType::KEYWORD_TABLE); // optional TRANSACTION word
+        Match(TokenType::KEYWORD_TRANSACTION);
         return std::make_unique<TransactionStatement>(TransactionType::BEGIN);
     } else if (Match(TokenType::KEYWORD_COMMIT)) {
+        Match(TokenType::KEYWORD_TRANSACTION);
         return std::make_unique<TransactionStatement>(TransactionType::COMMIT);
     } else if (Match(TokenType::KEYWORD_ROLLBACK)) {
+        Match(TokenType::KEYWORD_TRANSACTION);
         return std::make_unique<TransactionStatement>(TransactionType::ROLLBACK);
     }
     return Status::InvalidSyntax("Expected BEGIN, COMMIT, or ROLLBACK");

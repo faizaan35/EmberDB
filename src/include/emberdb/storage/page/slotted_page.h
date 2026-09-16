@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "emberdb/storage/page/page.h"
 #include "emberdb/storage/record/record.h"
@@ -43,6 +43,7 @@ public:
     bool GetRecord(const RID& rid, Record& record) const;
     bool UpdateRecord(const RID& rid, const Record& new_record);
     bool DeleteRecord(const RID& rid);
+    bool RollbackDelete(const RID& rid, const Record& old_record);
 
     Slot GetSlot(slot_id_t slot_id) const;
 

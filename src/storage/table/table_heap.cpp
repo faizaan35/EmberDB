@@ -174,6 +174,27 @@ Status TableHeap::DeleteRecord(const RID& rid) {
     return Status::OK();
 }
 
+Status TableHeap::RollbackDelete(const RID& rid, const Record& old_record) {
+    if (!rid.IsValid()) {
+        return Status::InvalidArgument("Invalid RID");
+    }
+
+    Page* page = bpm_->FetchPage(rid.page_id);
+    if (!page) {
+        return Status::NotFound("Page not found in buffer pool: " + std::to_string(rid.page_id));
+    }
+
+    SlottedPage sp(page->GetData());
+    bool ok = sp.RollbackDelete(rid, old_record);
+    bpm_->UnpinPage(rid.page_id, ok);
+
+    if (!ok) {
+        return Status::InvalidArgument("Failed to rollback deleted record at " + rid.ToString());
+    }
+
+    return Status::OK();
+}
+
 TableIterator TableHeap::Begin() {
     if (first_page_id_ == INVALID_PAGE_ID) {
         return End();

@@ -31,6 +31,7 @@ const std::unordered_map<std::string, TokenType> Lexer::keywords_ = {
     {"BEGIN", TokenType::KEYWORD_BEGIN},
     {"COMMIT", TokenType::KEYWORD_COMMIT},
     {"ROLLBACK", TokenType::KEYWORD_ROLLBACK},
+    {"TRANSACTION", TokenType::KEYWORD_TRANSACTION},
     {"INT", TokenType::KEYWORD_INT},
     {"INTEGER", TokenType::KEYWORD_INT},
     {"BIGINT", TokenType::KEYWORD_BIGINT},

@@ -43,6 +43,7 @@ public:
     int KeyIndex(const IndexKey& key) const;
     bool Lookup(const IndexKey& key, std::vector<RID>& result) const;
     int Insert(const IndexKey& key, const RID& value);
+    bool Remove(const IndexKey& key, const RID& value);
     void Split(BPlusTreeLeafPage* recipient, const IndexKey& key, const RID& value);
 
 private:

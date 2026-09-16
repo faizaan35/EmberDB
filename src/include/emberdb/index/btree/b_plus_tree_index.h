@@ -37,8 +37,9 @@ public:
     bool GetValue(const IndexKey& key, std::vector<RID>& result) const;
     bool GetOneValue(const IndexKey& key, RID& result) const;
 
-    // Insertion
+    // Insertion & Deletion
     bool Insert(const IndexKey& key, const RID& rid);
+    bool Remove(const IndexKey& key, const RID& rid);
 
     // Range scans
     std::vector<std::pair<IndexKey, RID>> ScanRange(const IndexKey& low_key, const IndexKey& high_key) const;

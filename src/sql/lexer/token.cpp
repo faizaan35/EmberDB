@@ -30,6 +30,7 @@ std::string TokenTypeToString(TokenType type) {
         case TokenType::KEYWORD_BEGIN: return "BEGIN";
         case TokenType::KEYWORD_COMMIT: return "COMMIT";
         case TokenType::KEYWORD_ROLLBACK: return "ROLLBACK";
+        case TokenType::KEYWORD_TRANSACTION: return "TRANSACTION";
         case TokenType::KEYWORD_INT: return "INT";
         case TokenType::KEYWORD_BIGINT: return "BIGINT";
         case TokenType::KEYWORD_DOUBLE: return "DOUBLE";

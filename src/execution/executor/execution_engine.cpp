@@ -16,9 +16,13 @@ namespace emberdb {
 
 ExecutionEngine::ExecutionEngine(Catalog* catalog) : catalog_(catalog), planner_(catalog) {}
 
-QueryResult ExecutionEngine::Execute(const Statement* stmt) {
+QueryResult ExecutionEngine::Execute(const Statement* stmt, Transaction* txn) {
     if (!stmt) {
         return QueryResult{false, "Null statement", {}, {}, 0, 0.0};
+    }
+
+    if (!txn) {
+        txn = active_txn_.get();
     }
 
     auto start_time = std::chrono::high_resolution_clock::now();
@@ -35,16 +39,16 @@ QueryResult ExecutionEngine::Execute(const Statement* stmt) {
             result = ExecuteCreateIndex(dynamic_cast<const CreateIndexStatement*>(stmt));
             break;
         case StatementType::INSERT:
-            result = ExecuteInsert(dynamic_cast<const InsertStatement*>(stmt));
+            result = ExecuteInsert(dynamic_cast<const InsertStatement*>(stmt), txn);
             break;
         case StatementType::SELECT:
             result = ExecuteSelect(dynamic_cast<const SelectStatement*>(stmt));
             break;
         case StatementType::UPDATE:
-            result = ExecuteUpdate(dynamic_cast<const UpdateStatement*>(stmt));
+            result = ExecuteUpdate(dynamic_cast<const UpdateStatement*>(stmt), txn);
             break;
         case StatementType::DELETE:
-            result = ExecuteDelete(dynamic_cast<const DeleteStatement*>(stmt));
+            result = ExecuteDelete(dynamic_cast<const DeleteStatement*>(stmt), txn);
             break;
         case StatementType::TRANSACTION:
             result = ExecuteTransaction(dynamic_cast<const TransactionStatement*>(stmt));
@@ -109,7 +113,7 @@ QueryResult ExecutionEngine::ExecuteCreateIndex(const CreateIndexStatement* stmt
     return QueryResult{true, "", {}, {}, 0, 0.0};
 }
 
-QueryResult ExecutionEngine::ExecuteInsert(const InsertStatement* stmt) {
+QueryResult ExecutionEngine::ExecuteInsert(const InsertStatement* stmt, Transaction* txn) {
     Table* table = catalog_->GetTable(stmt->GetTableName());
     if (!table) {
         return QueryResult{false, "Table not found: " + stmt->GetTableName(), {}, {}, 0, 0.0};
@@ -156,6 +160,10 @@ QueryResult ExecutionEngine::ExecuteInsert(const InsertStatement* stmt) {
         for (auto* idx_info : table_indexes) {
             Value val = record.GetValue(schema, idx_info->GetColumnIdx());
             idx_info->GetIndex()->Insert(IndexKey(val), record.GetRID());
+        }
+
+        if (txn != nullptr) {
+            txn->AppendTableWrite({TableWriteType::INSERT, stmt->GetTableName(), record.GetRID(), Record(), record});
         }
 
         ++rows_inserted;
@@ -393,13 +401,14 @@ QueryResult ExecutionEngine::ExecuteSelect(const SelectStatement* stmt) {
     return QueryResult{true, "", current_head->GetOutputSchema(), std::move(results), 0, 0.0};
 }
 
-QueryResult ExecutionEngine::ExecuteUpdate(const UpdateStatement* stmt) {
+QueryResult ExecutionEngine::ExecuteUpdate(const UpdateStatement* stmt, Transaction* txn) {
     Table* table = catalog_->GetTable(stmt->GetTableName());
     if (!table) {
         return QueryResult{false, "Table not found: " + stmt->GetTableName(), {}, {}, 0, 0.0};
     }
 
     const Schema& schema = table->GetSchema();
+    auto table_indexes = catalog_->GetTableIndexes(stmt->GetTableName());
 
     SeqScanExecutor scan(table, stmt->GetWhereClause());
     scan.Init();
@@ -429,42 +438,111 @@ QueryResult ExecutionEngine::ExecuteUpdate(const UpdateStatement* stmt) {
         if (!status.ok()) {
             return QueryResult{false, status.ToString(), {}, {}, updated_count, 0.0};
         }
+
+        // Maintain indexes
+        for (auto* idx_info : table_indexes) {
+            IndexKey old_key(current_record.GetValue(schema, idx_info->GetColumnIdx()));
+            IndexKey new_key(new_record.GetValue(schema, idx_info->GetColumnIdx()));
+            if (!(old_key == new_key)) {
+                idx_info->GetIndex()->Remove(old_key, curr_rid);
+                idx_info->GetIndex()->Insert(new_key, curr_rid);
+            }
+        }
+
+        if (txn != nullptr) {
+            txn->AppendTableWrite({TableWriteType::UPDATE, stmt->GetTableName(), curr_rid, current_record, new_record});
+        }
+
         ++updated_count;
     }
 
     return QueryResult{true, "", {}, {}, updated_count, 0.0};
 }
 
-QueryResult ExecutionEngine::ExecuteDelete(const DeleteStatement* stmt) {
+QueryResult ExecutionEngine::ExecuteDelete(const DeleteStatement* stmt, Transaction* txn) {
     Table* table = catalog_->GetTable(stmt->GetTableName());
     if (!table) {
         return QueryResult{false, "Table not found: " + stmt->GetTableName(), {}, {}, 0, 0.0};
     }
 
+    auto table_indexes = catalog_->GetTableIndexes(stmt->GetTableName());
+
     SeqScanExecutor scan(table, stmt->GetWhereClause());
     scan.Init();
 
-    std::vector<RID> to_delete;
+    std::vector<std::pair<RID, Record>> to_delete;
     Record rec;
     RID rid;
     while (scan.Next(&rec, &rid)) {
-        to_delete.push_back(rid);
+        to_delete.emplace_back(rid, std::move(rec));
     }
 
     uint32_t deleted_count = 0;
-    for (const auto& r : to_delete) {
+    for (const auto& pair : to_delete) {
+        const RID& r = pair.first;
+        const Record& before_rec = pair.second;
         auto status = table->GetTableHeap()->DeleteRecord(r);
         if (!status.ok()) {
             return QueryResult{false, status.ToString(), {}, {}, deleted_count, 0.0};
         }
+
+        // Remove from indexes
+        for (auto* idx_info : table_indexes) {
+            IndexKey key(before_rec.GetValue(table->GetSchema(), idx_info->GetColumnIdx()));
+            idx_info->GetIndex()->Remove(key, r);
+        }
+
+        if (txn != nullptr) {
+            txn->AppendTableWrite({TableWriteType::DELETE, stmt->GetTableName(), r, before_rec, Record()});
+        }
+
         ++deleted_count;
     }
 
     return QueryResult{true, "", {}, {}, deleted_count, 0.0};
 }
 
-QueryResult ExecutionEngine::ExecuteTransaction(const TransactionStatement* /*stmt*/) {
-    return QueryResult{true, "", {}, {}, 0, 0.0};
+QueryResult ExecutionEngine::ExecuteTransaction(const TransactionStatement* stmt) {
+    if (!stmt) {
+        return QueryResult{false, "Null transaction statement", {}, {}, 0, 0.0};
+    }
+
+    switch (stmt->GetTransactionType()) {
+        case TransactionType::BEGIN: {
+            if (active_txn_ != nullptr) {
+                return QueryResult{false, "A transaction is already active", {}, {}, 0, 0.0};
+            }
+            active_txn_ = txn_mgr_.Begin();
+            return QueryResult{true, "", {}, {}, 0, 0.0};
+        }
+        case TransactionType::COMMIT: {
+            if (active_txn_ == nullptr) {
+                return QueryResult{false, "No active transaction to commit", {}, {}, 0, 0.0};
+            }
+            if (catalog_ && catalog_->GetBufferPoolManager()) {
+                catalog_->GetBufferPoolManager()->FlushAllPages();
+            }
+            auto st = txn_mgr_.Commit(active_txn_.get());
+            active_txn_ = nullptr;
+            if (!st.ok()) {
+                return QueryResult{false, st.message(), {}, {}, 0, 0.0};
+            }
+            return QueryResult{true, "", {}, {}, 0, 0.0};
+        }
+        case TransactionType::ROLLBACK: {
+            if (active_txn_ == nullptr) {
+                return QueryResult{false, "No active transaction to rollback", {}, {}, 0, 0.0};
+            }
+            auto st = txn_mgr_.Abort(active_txn_.get(), catalog_);
+            active_txn_ = nullptr;
+            if (!st.ok()) {
+                return QueryResult{false, st.message(), {}, {}, 0, 0.0};
+            }
+            return QueryResult{true, "", {}, {}, 0, 0.0};
+        }
+    }
+
+    return QueryResult{false, "Unknown transaction operation", {}, {}, 0, 0.0};
 }
 
 std::string QueryResult::FormatAsTable() const {

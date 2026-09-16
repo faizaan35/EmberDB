@@ -18,7 +18,7 @@ This document tracks progress across all implementation phases of **EmberDB** as
 | **Phase 7** | Buffer Pool (LRU, Pin/Unpin, Dirty Tracking) | **COMPLETE** | **PASSED** |
 | **Phase 8** | B+ Tree Index (Search, Insert, Split, Range Scan) | **COMPLETE** | **PASSED** |
 | **Phase 9** | Query Planner + Index Scan | **COMPLETE** | **PASSED** |
-| **Phase 10** | Transactions (BEGIN, COMMIT, ROLLBACK) | PENDING | NOT STARTED |
+| **Phase 10** | Transactions (BEGIN, COMMIT, ROLLBACK) | **COMPLETE** | **PASSED** |
 | **Phase 11** | Concurrency (Synchronization, Thread Safety) | PENDING | NOT STARTED |
 | **Phase 12** | Write-Ahead Logging (WAL, LSN, Log Records) | PENDING | NOT STARTED |
 | **Phase 13** | Crash Recovery (Redo, Undo, Checkpointing) | PENDING | NOT STARTED |
@@ -169,5 +169,29 @@ This document tracks progress across all implementation phases of **EmberDB** as
 * **Build Command**: `cmake --build build --config Debug`
 * **Test Command**: `ctest --test-dir build --output-on-failure` & `.\build\bin\emberdb_tests.exe`
 * **Test Results**: 33 test cases, 14,795 assertions passed, 0 failures.
+
+### Phase 10 — Transactions
+* **Status**: **COMPLETE**
+* **Completion Gate**: **PASSED**
+  * All Phase 10 gate scenarios verified:
+    - Commit test: multiple DML statements wrapped in `BEGIN ... COMMIT` persisted to disk and verified surviving process close and restart.
+    - Rollback test on INSERT: `BEGIN; INSERT INTO users VALUES (10, 'Test'); ROLLBACK;` confirmed 0 rows returned on subsequent lookup.
+    - Rollback test on UPDATE: `BEGIN; UPDATE users SET age = 99 WHERE id = 1; ROLLBACK;` reverted in-place to previous tuple values.
+    - Rollback test on DELETE: `BEGIN; DELETE FROM users WHERE id = 2; ROLLBACK;` revived deleted row with exact original values.
+    - Multiple mixed statements in transaction: INSERT, UPDATE, and DELETE executed and rolled back cleanly in reverse topological order.
+    - Transaction state validation: strict verification of state transitions (`ACTIVE` -> `COMMITTED`, `ACTIVE` -> `ABORTED`), rejection of nested `BEGIN`, rejection of `COMMIT`/`ROLLBACK` without active transaction.
+    - Index synchronization on transaction rollback: B+ tree indexes automatically remove newly inserted keys on rollback and restore previous keys on rollback of UPDATE and DELETE.
+  * All 35 test cases (14,883 assertions) passed with zero errors.
+* **What was Implemented**:
+  * `Transaction`: encapsulates `txn_id_t`, `TransactionState` (`ACTIVE`, `COMMITTED`, `ABORTED`), and table write undo logs (`TableWriteRecord`).
+  * `TransactionManager`: thread-safe coordinator allocating monotonic transaction IDs and executing ACID `Commit()` and `Abort()` operations.
+  * Rollback undo engine: reverses table mutations (tombstoning inserts, rolling back updates with before-images, and resurrecting tombstoned slots in `SlottedPage` via `RollbackDelete`).
+  * B+ Tree Index rollback synchronization: added `Remove()` to `BPlusTreeLeafPage` and `BPlusTreeIndex` to keep secondary indexes consistent across rollbacks.
+  * SQL parser & lexer integration: added `KEYWORD_TRANSACTION` and parsed `BEGIN [TRANSACTION];`, `COMMIT [TRANSACTION];`, and `ROLLBACK [TRANSACTION];`.
+  * `ExecutionEngine` transaction lifecycle: tracks active transaction, logs DML writes, and provides auto-flush buffer pool durability upon `COMMIT`.
+* **Build Command**: `cmake --build build --config Debug`
+* **Test Command**: `ctest --test-dir build --output-on-failure` & `.\build\bin\emberdb_tests.exe`
+* **Test Results**: 35 test cases, 14,883 assertions passed, 0 failures.
+
 
 

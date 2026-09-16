@@ -124,6 +124,21 @@ bool BPlusTreeIndex::Insert(const IndexKey& key, const RID& rid) {
     return true;
 }
 
+bool BPlusTreeIndex::Remove(const IndexKey& key, const RID& rid) {
+    if (IsEmpty()) return false;
+
+    page_id_t leaf_pid = FindLeafPage(key);
+    if (leaf_pid == INVALID_PAGE_ID) return false;
+
+    Page* p = bpm_->FetchPage(leaf_pid);
+    if (!p) return false;
+
+    auto* leaf = reinterpret_cast<BPlusTreeLeafPage*>(p->GetData());
+    bool removed = leaf->Remove(key, rid);
+    bpm_->UnpinPage(leaf_pid, removed);
+    return removed;
+}
+
 void BPlusTreeIndex::InsertIntoParent(BPlusTreePage* old_child, const IndexKey& key, BPlusTreePage* new_child) {
     if (old_child->IsRootPage()) {
         page_id_t new_root_pid = INVALID_PAGE_ID;

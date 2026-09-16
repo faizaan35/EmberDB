@@ -1,4 +1,4 @@
-﻿#include "emberdb/storage/page/slotted_page.h"
+#include "emberdb/storage/page/slotted_page.h"
 
 namespace emberdb {
 
@@ -205,6 +205,35 @@ bool SlottedPage::DeleteRecord(const RID& rid) {
     if (s.size == 0) return false;
 
     s.size = 0; // Mark deleted / tombstone
+    SetSlot(rid.slot_id, s);
+    return true;
+}
+
+bool SlottedPage::RollbackDelete(const RID& rid, const Record& old_record) {
+    if (rid.page_id != GetPageId()) return false;
+    if (rid.slot_id < 0 || rid.slot_id >= GetSlotCount()) return false;
+
+    Slot s = GetSlot(rid.slot_id);
+    if (s.size != 0) {
+        return UpdateRecord(rid, old_record);
+    }
+
+    uint32_t rec_len = old_record.GetLength();
+    if (rec_len == 0 || rec_len > PAGE_SIZE - PAGE_HEADER_SIZE - sizeof(Slot)) {
+        return false;
+    }
+
+    if (GetFreeSpace() < rec_len) {
+        return false;
+    }
+
+    uint16_t free_ptr = GetFreeSpacePointer();
+    uint16_t new_offset = static_cast<uint16_t>(free_ptr - rec_len);
+    std::memcpy(data_ + new_offset, old_record.GetData(), rec_len);
+    SetFreeSpacePointer(new_offset);
+
+    s.offset = new_offset;
+    s.size = static_cast<uint16_t>(rec_len);
     SetSlot(rid.slot_id, s);
     return true;
 }

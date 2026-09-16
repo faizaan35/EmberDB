@@ -74,3 +74,20 @@
   * Slotted page layout for index nodes: Excessive complexity for sorted binary search arrays; fixed slot entry sizes allow direct $O(\log N)$ binary search without offset indirection.
 * **Tradeoffs**: Key size is capped at 120 bytes for `VARCHAR` columns; fixed 128-byte slot size trades higher fanout for integer keys in exchange for universal type support and simplicity.
 
+---
+
+## ADR-010: In-Memory Undo-Log Transaction Subsystem with Storage Rollback Hooks
+
+* **Context**: A relational database must provide Atomicity and Durability for multi-statement operations (`BEGIN`, `COMMIT`, `ROLLBACK`). If a transaction aborts or errors out, all intermediate mutations across tables and indexes must be rolled back.
+* **Decision**: Implement a `Transaction` class tracking transaction state (`ACTIVE`, `COMMITTED`, `ABORTED`) and a reverse undo log (`TableWriteRecord`) recording before- and after-images of INSERT, UPDATE, and DELETE operations. Pair this with dedicated storage engine resurrection hooks (`SlottedPage::RollbackDelete`) and index removal hooks (`BPlusTreeIndex::Remove`).
+* **Why**:
+  1. Operating in reverse topological order during rollback ensures that cascaded operations (e.g. INSERT followed by UPDATE or DELETE) cleanly restore previous state.
+  2. `SlottedPage::RollbackDelete` allows tombstoned slots (`s.size == 0`) to be revived with their original before-image at the exact same `RID` without changing tuple identifiers.
+  3. `BPlusTreeIndex::Remove` synchronizes secondary indexes during rollbacks, ensuring subsequent point lookups and range scans remain bit-exact.
+  4. Explicit `COMMIT` invokes `BufferPoolManager::FlushAllPages()`, guaranteeing disk persistence across process restarts.
+* **Alternatives Considered**:
+  * Shadow paging: Copying entire pages on write produces severe disk fragmentation and complicates index maintenance.
+  * Direct WAL rollback without undo log: Requires WAL replay subsystem (Phase 12/13) before transactions can even function. The in-memory undo log provides immediate transaction atomicity while paving the way for WAL integration.
+* **Tradeoffs**: Active transaction undo logs reside in memory during transaction execution; very large uncommitted transactions require memory proportional to the number of modified records.
+
+

@@ -23,6 +23,7 @@ public:
     Status GetRecord(const RID& rid, Record& record);
     Status UpdateRecord(const RID& rid, const Record& new_record);
     Status DeleteRecord(const RID& rid);
+    Status RollbackDelete(const RID& rid, const Record& old_record);
 
     page_id_t GetFirstPageId() const { return first_page_id_; }
     DiskManager* GetDiskManager() const { return disk_mgr_; }

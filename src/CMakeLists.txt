@@ -33,6 +33,8 @@ add_library(emberdb_core STATIC
     planner/plan_node.cpp
     planner/planner.cpp
     execution/executor/index_scan_executor.cpp
+    transaction/transaction.cpp
+    transaction/transaction_manager.cpp
 )
 
 target_include_directories(emberdb_core

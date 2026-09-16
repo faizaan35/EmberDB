@@ -64,6 +64,21 @@ int BPlusTreeLeafPage::Insert(const IndexKey& key, const RID& value) {
     return GetSize();
 }
 
+bool BPlusTreeLeafPage::Remove(const IndexKey& key, const RID& value) {
+    int idx = KeyIndex(key);
+    while (idx < GetSize() && array_[idx].key == key) {
+        if (array_[idx].rid == value) {
+            for (int i = idx; i < GetSize() - 1; ++i) {
+                array_[i] = array_[i + 1];
+            }
+            IncreaseSize(-1);
+            return true;
+        }
+        idx++;
+    }
+    return false;
+}
+
 void BPlusTreeLeafPage::Split(BPlusTreeLeafPage* recipient, const IndexKey& key, const RID& value) {
     int total = GetSize() + 1;
     std::vector<LeafEntry> temp;
