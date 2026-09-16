@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <string>
 
@@ -43,6 +43,7 @@ enum class TokenType {
     KEYWORD_TRUE,
     KEYWORD_FALSE,
     KEYWORD_NULL,
+    KEYWORD_EXPLAIN,
 
     // Operators
     EQUAL,          // =

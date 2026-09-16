@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "emberdb/common/types.h"
 #include "emberdb/catalog/column.h"
@@ -40,6 +40,7 @@ public:
     virtual ~Expression() = default;
     virtual ExpressionType GetType() const = 0;
     virtual std::string ToString() const = 0;
+    virtual std::unique_ptr<Expression> Clone() const = 0;
 };
 
 class LiteralExpression : public Expression {
@@ -48,6 +49,9 @@ public:
     ExpressionType GetType() const override { return ExpressionType::LITERAL; }
     const Value& GetValue() const { return value_; }
     std::string ToString() const override { return value_.ToString(); }
+    std::unique_ptr<Expression> Clone() const override {
+        return std::make_unique<LiteralExpression>(value_);
+    }
 
 private:
     Value value_;
@@ -67,6 +71,10 @@ public:
         return col_name_;
     }
 
+    std::unique_ptr<Expression> Clone() const override {
+        return std::make_unique<ColumnRefExpression>(col_name_, tbl_name_);
+    }
+
 private:
     std::string col_name_;
     std::string tbl_name_;
@@ -77,6 +85,9 @@ public:
     StarExpression() = default;
     ExpressionType GetType() const override { return ExpressionType::STAR; }
     std::string ToString() const override { return "*"; }
+    std::unique_ptr<Expression> Clone() const override {
+        return std::make_unique<StarExpression>();
+    }
 };
 
 class BinaryExpression : public Expression {
@@ -91,6 +102,10 @@ public:
 
     std::string ToString() const override {
         return "(" + left_->ToString() + " " + BinaryOpToString(op_) + " " + right_->ToString() + ")";
+    }
+
+    std::unique_ptr<Expression> Clone() const override {
+        return std::make_unique<BinaryExpression>(left_->Clone(), op_, right_->Clone());
     }
 
 private:
@@ -111,6 +126,10 @@ public:
     std::string ToString() const override {
         std::string op_str = (op_ == UnaryOpType::NOT) ? "NOT " : "-";
         return op_str + expr_->ToString();
+    }
+
+    std::unique_ptr<Expression> Clone() const override {
+        return std::make_unique<UnaryExpression>(op_, expr_->Clone());
     }
 
 private:
@@ -137,6 +156,15 @@ public:
         return s;
     }
 
+    std::unique_ptr<Expression> Clone() const override {
+        std::vector<std::unique_ptr<Expression>> cloned_args;
+        cloned_args.reserve(args_.size());
+        for (const auto& a : args_) {
+            cloned_args.push_back(a->Clone());
+        }
+        return std::make_unique<FunctionCallExpression>(func_name_, std::move(cloned_args));
+    }
+
 private:
     std::string func_name_;
     std::vector<std::unique_ptr<Expression>> args_;
@@ -154,7 +182,8 @@ enum class StatementType {
     SELECT,
     UPDATE,
     DELETE,
-    TRANSACTION
+    TRANSACTION,
+    EXPLAIN
 };
 
 class Statement {
@@ -353,6 +382,22 @@ public:
 
 private:
     TransactionType type_;
+};
+
+class ExplainStatement : public Statement {
+public:
+    explicit ExplainStatement(std::unique_ptr<Statement> inner_stmt)
+        : inner_stmt_(std::move(inner_stmt)) {}
+
+    StatementType GetType() const override { return StatementType::EXPLAIN; }
+    const Statement* GetInnerStatement() const { return inner_stmt_.get(); }
+
+    std::string ToString() const override {
+        return "EXPLAIN " + (inner_stmt_ ? inner_stmt_->ToString() : "");
+    }
+
+private:
+    std::unique_ptr<Statement> inner_stmt_;
 };
 
 } // namespace emberdb

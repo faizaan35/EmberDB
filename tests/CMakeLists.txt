@@ -17,6 +17,7 @@ add_executable(emberdb_tests
     storage/buffer_pool_test.cpp
     index/b_plus_tree_test.cpp
     index/index_persistence_test.cpp
+    planner/planner_test.cpp
 )
 
 target_include_directories(emberdb_tests

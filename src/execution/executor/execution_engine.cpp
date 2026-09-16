@@ -6,6 +6,7 @@
 #include "emberdb/execution/executor/aggregate_executor.h"
 #include "emberdb/execution/executor/filter_executor.h"
 #include "emberdb/execution/executor/nested_loop_join_executor.h"
+#include "emberdb/execution/executor/index_scan_executor.h"
 #include "emberdb/execution/expressions/expression_evaluator.h"
 #include <iomanip>
 #include <sstream>
@@ -13,7 +14,7 @@
 
 namespace emberdb {
 
-ExecutionEngine::ExecutionEngine(Catalog* catalog) : catalog_(catalog) {}
+ExecutionEngine::ExecutionEngine(Catalog* catalog) : catalog_(catalog), planner_(catalog) {}
 
 QueryResult ExecutionEngine::Execute(const Statement* stmt) {
     if (!stmt) {
@@ -47,6 +48,9 @@ QueryResult ExecutionEngine::Execute(const Statement* stmt) {
             break;
         case StatementType::TRANSACTION:
             result = ExecuteTransaction(dynamic_cast<const TransactionStatement*>(stmt));
+            break;
+        case StatementType::EXPLAIN:
+            result = ExecuteExplain(dynamic_cast<const ExplainStatement*>(stmt));
             break;
         default:
             result = QueryResult{false, "Unsupported statement type", {}, {}, 0, 0.0};
@@ -168,15 +172,31 @@ QueryResult ExecutionEngine::ExecuteSelect(const SelectStatement* stmt) {
 
     // 1. Base scan and joins setup
     std::unique_ptr<SeqScanExecutor> base_scan;
+    std::unique_ptr<IndexScanExecutor> index_scan;
     std::vector<std::unique_ptr<SeqScanExecutor>> join_scans;
     std::vector<std::unique_ptr<NestedLoopJoinExecutor>> join_execs;
     std::unique_ptr<FilterExecutor> filter_exec;
 
     AbstractExecutor* current_head = nullptr;
 
+    auto plan = planner_.PlanSelect(stmt);
+
     if (stmt->GetJoins().empty()) {
-        base_scan = std::make_unique<SeqScanExecutor>(table, stmt->GetWhereClause());
-        current_head = base_scan.get();
+        const AbstractPlanNode* scan_node = plan ? plan.get() : nullptr;
+        while (scan_node && !scan_node->GetChildren().empty() &&
+               scan_node->GetType() != PlanNodeType::INDEX_SCAN &&
+               scan_node->GetType() != PlanNodeType::SEQ_SCAN) {
+            scan_node = scan_node->GetChildAt(0);
+        }
+
+        if (scan_node && scan_node->GetType() == PlanNodeType::INDEX_SCAN) {
+            const auto* idx_plan = dynamic_cast<const IndexScanPlanNode*>(scan_node);
+            index_scan = std::make_unique<IndexScanExecutor>(idx_plan);
+            current_head = index_scan.get();
+        } else {
+            base_scan = std::make_unique<SeqScanExecutor>(table, stmt->GetWhereClause());
+            current_head = base_scan.get();
+        }
     } else {
         // Build table-qualified schema for left table
         std::vector<Column> left_cols;
@@ -521,6 +541,34 @@ std::string QueryResult::FormatAsTable() const {
 
     ss << rows.size() << " row(s) in set.\n";
     return ss.str();
+}
+
+QueryResult ExecutionEngine::ExecuteExplain(const ExplainStatement* stmt) {
+    if (!stmt || !stmt->GetInnerStatement()) {
+        return QueryResult{false, "Empty EXPLAIN statement", {}, {}, 0, 0.0};
+    }
+
+    Schema schema({Column("QUERY PLAN", TypeId::VARCHAR, 500, false)});
+    std::vector<Record> rows;
+
+    if (stmt->GetInnerStatement()->GetType() == StatementType::SELECT) {
+        const auto* sel = dynamic_cast<const SelectStatement*>(stmt->GetInnerStatement());
+        auto plan = planner_.PlanSelect(sel);
+        if (!plan) {
+            return QueryResult{false, "Failed to plan query", {}, {}, 0, 0.0};
+        }
+
+        std::string plan_str = plan->ToString();
+        std::istringstream stream(plan_str);
+        std::string line;
+        while (std::getline(stream, line)) {
+            rows.emplace_back(std::vector<Value>{Value(line)}, schema);
+        }
+    } else {
+        rows.emplace_back(std::vector<Value>{Value(stmt->GetInnerStatement()->ToString())}, schema);
+    }
+
+    return QueryResult{true, "", std::move(schema), std::move(rows), static_cast<uint32_t>(rows.size()), 0.0};
 }
 
 } // namespace emberdb

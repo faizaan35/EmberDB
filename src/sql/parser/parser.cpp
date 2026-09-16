@@ -1,4 +1,4 @@
-﻿#include "emberdb/sql/parser/parser.h"
+#include "emberdb/sql/parser/parser.h"
 #include <limits>
 #include <algorithm>
 
@@ -84,6 +84,10 @@ Result<std::unique_ptr<Statement>> Parser::ParseStatement() {
         return ParseDelete();
     } else if (Check(TokenType::KEYWORD_BEGIN) || Check(TokenType::KEYWORD_COMMIT) || Check(TokenType::KEYWORD_ROLLBACK)) {
         return ParseTransaction();
+    } else if (Match(TokenType::KEYWORD_EXPLAIN)) {
+        auto inner_res = ParseStatement();
+        if (!inner_res.ok()) return inner_res.status();
+        return std::make_unique<ExplainStatement>(std::move(*inner_res));
     }
 
     return Status::InvalidSyntax("Unexpected statement beginning with '" + Peek().lexeme + "'");

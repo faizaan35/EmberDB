@@ -17,7 +17,7 @@ This document tracks progress across all implementation phases of **EmberDB** as
 | **Phase 6** | JOINs (Nested Loop Join, INNER / LEFT) | **COMPLETE** | **PASSED** |
 | **Phase 7** | Buffer Pool (LRU, Pin/Unpin, Dirty Tracking) | **COMPLETE** | **PASSED** |
 | **Phase 8** | B+ Tree Index (Search, Insert, Split, Range Scan) | **COMPLETE** | **PASSED** |
-| **Phase 9** | Query Planner + Index Scan | PENDING | NOT STARTED |
+| **Phase 9** | Query Planner + Index Scan | **COMPLETE** | **PASSED** |
 | **Phase 10** | Transactions (BEGIN, COMMIT, ROLLBACK) | PENDING | NOT STARTED |
 | **Phase 11** | Concurrency (Synchronization, Thread Safety) | PENDING | NOT STARTED |
 | **Phase 12** | Write-Ahead Logging (WAL, LSN, Log Records) | PENDING | NOT STARTED |
@@ -148,4 +148,26 @@ This document tracks progress across all implementation phases of **EmberDB** as
 * **Build Command**: `cmake --build build --config Debug`
 * **Test Command**: `ctest --test-dir build --output-on-failure` & `.\build\bin\emberdb_tests.exe`
 * **Test Results**: 32 test cases, 12,724 assertions passed, 0 failures.
+
+### Phase 9 — Query Planner + Index Scan
+* **Status**: **COMPLETE**
+* **Completion Gate**: **PASSED**
+  * All Phase 9 gate scenarios verified:
+    - Automatic `IndexScan` selection for equality predicate (`WHERE id = 500`) when index exists on `id`.
+    - Fallback to `SeqScan` + `Filter` before index creation or for non-indexed columns (`WHERE name = 'User500'`).
+    - Range index scan selection (`WHERE id >= 100 AND id <= 120`).
+    - IndexScan with residual predicate (`WHERE id = 251 AND age > 20`), where index satisfies `id = 251` and filter operator evaluates `age > 20`.
+    - `EXPLAIN` query statement: verified text plan representation exposing physical operators (`IndexScan`, `SeqScan`, `Filter`, `Projection`, etc.).
+    - Strict result equivalence: verified that queries executed via `IndexScan` return identical tuples to `SeqScan`.
+  * All 33 test cases (14,795 assertions) passed with zero errors.
+* **What was Implemented**:
+  * `AbstractPlanNode` & physical plan nodes: `SeqScanPlanNode`, `IndexScanPlanNode`, `FilterPlanNode`, `ProjectionPlanNode`, `SortPlanNode`, `LimitPlanNode`, `AggregatePlanNode`, `NestedLoopJoinPlanNode` with tree visualization (`ToString()`).
+  * `IndexScanExecutor`: Volcano iterator querying `BPlusTreeIndex` for matching `RID`s and fetching tuples from `TableHeap`.
+  * `Planner`: Rule-based query optimizer analyzing AST WHERE expressions, extracting indexable predicates, and selecting between `SeqScanPlanNode` and `IndexScanPlanNode` (point lookup or range scan), attaching residual filters where appropriate.
+  * `EXPLAIN` statement support: Tokenizer, AST `ExplainStatement`, parser, and execution returning plan text strings.
+  * AST `Clone()` virtual method across all `Expression` variants to safely construct plan trees without mutating parser ASTs.
+* **Build Command**: `cmake --build build --config Debug`
+* **Test Command**: `ctest --test-dir build --output-on-failure` & `.\build\bin\emberdb_tests.exe`
+* **Test Results**: 33 test cases, 14,795 assertions passed, 0 failures.
+
 

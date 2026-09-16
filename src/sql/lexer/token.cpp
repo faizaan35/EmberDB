@@ -1,4 +1,4 @@
-﻿#include "emberdb/sql/lexer/token.h"
+#include "emberdb/sql/lexer/token.h"
 
 namespace emberdb {
 
@@ -41,6 +41,7 @@ std::string TokenTypeToString(TokenType type) {
         case TokenType::KEYWORD_TRUE: return "TRUE";
         case TokenType::KEYWORD_FALSE: return "FALSE";
         case TokenType::KEYWORD_NULL: return "NULL";
+        case TokenType::KEYWORD_EXPLAIN: return "EXPLAIN";
         case TokenType::EQUAL: return "=";
         case TokenType::NOT_EQUAL: return "!=";
         case TokenType::LESS_THAN: return "<";

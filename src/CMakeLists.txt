@@ -30,6 +30,9 @@ add_library(emberdb_core STATIC
     index/btree/b_plus_tree_leaf_page.cpp
     index/btree/b_plus_tree_internal_page.cpp
     index/btree/b_plus_tree_index.cpp
+    planner/plan_node.cpp
+    planner/planner.cpp
+    execution/executor/index_scan_executor.cpp
 )
 
 target_include_directories(emberdb_core

@@ -1,6 +1,7 @@
-﻿#pragma once
+#pragma once
 
 #include "emberdb/catalog/catalog.h"
+#include "emberdb/planner/planner.h"
 #include "emberdb/sql/ast/ast.h"
 #include "emberdb/storage/record/record.h"
 #include <vector>
@@ -26,6 +27,9 @@ public:
 
     QueryResult Execute(const Statement* stmt);
 
+    Planner* GetPlanner() { return &planner_; }
+    const Planner* GetPlanner() const { return &planner_; }
+
 private:
     QueryResult ExecuteCreateTable(const CreateTableStatement* stmt);
     QueryResult ExecuteDropTable(const DropTableStatement* stmt);
@@ -35,8 +39,10 @@ private:
     QueryResult ExecuteUpdate(const UpdateStatement* stmt);
     QueryResult ExecuteDelete(const DeleteStatement* stmt);
     QueryResult ExecuteTransaction(const TransactionStatement* stmt);
+    QueryResult ExecuteExplain(const ExplainStatement* stmt);
 
     Catalog* catalog_;
+    Planner planner_;
 };
 
 } // namespace emberdb

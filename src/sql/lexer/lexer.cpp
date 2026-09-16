@@ -1,4 +1,4 @@
-﻿#include "emberdb/sql/lexer/lexer.h"
+#include "emberdb/sql/lexer/lexer.h"
 #include <cctype>
 #include <algorithm>
 
@@ -43,7 +43,8 @@ const std::unordered_map<std::string, TokenType> Lexer::keywords_ = {
     {"NOT", TokenType::KEYWORD_NOT},
     {"TRUE", TokenType::KEYWORD_TRUE},
     {"FALSE", TokenType::KEYWORD_FALSE},
-    {"NULL", TokenType::KEYWORD_NULL}
+    {"NULL", TokenType::KEYWORD_NULL},
+    {"EXPLAIN", TokenType::KEYWORD_EXPLAIN}
 };
 
 Lexer::Lexer(std::string source) : source_(std::move(source)) {}
