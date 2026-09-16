@@ -16,7 +16,7 @@ This document tracks progress across all implementation phases of **EmberDB** as
 | **Phase 5** | Query Features (ORDER BY, LIMIT, Aggregates, GROUP BY) | **COMPLETE** | **PASSED** |
 | **Phase 6** | JOINs (Nested Loop Join, INNER / LEFT) | **COMPLETE** | **PASSED** |
 | **Phase 7** | Buffer Pool (LRU, Pin/Unpin, Dirty Tracking) | **COMPLETE** | **PASSED** |
-| **Phase 8** | B+ Tree Index (Search, Insert, Split, Range Scan) | PENDING | NOT STARTED |
+| **Phase 8** | B+ Tree Index (Search, Insert, Split, Range Scan) | **COMPLETE** | **PASSED** |
 | **Phase 9** | Query Planner + Index Scan | PENDING | NOT STARTED |
 | **Phase 10** | Transactions (BEGIN, COMMIT, ROLLBACK) | PENDING | NOT STARTED |
 | **Phase 11** | Concurrency (Synchronization, Thread Safety) | PENDING | NOT STARTED |
@@ -123,3 +123,29 @@ This document tracks progress across all implementation phases of **EmberDB** as
 * **Build Command**: `cmake --build build --config Debug`
 * **Test Command**: `.\build\bin\emberdb_tests.exe`
 * **Test Results**: 27 test cases, 2045 assertions passed, 0 failures.
+
+### Phase 8 — B+ Tree Index (Search, Insert, Split, Range Scan)
+* **Status**: **COMPLETE**
+* **Completion Gate**: **PASSED**
+  * All Phase 8 gate scenarios verified:
+    - 1 insertion: single root leaf node, exact key lookup, range scan, absent key verification.
+    - 100 insertions: leaf splitting, internal node creation, exact point lookups for all 100 keys, range scans across multiple leaves.
+    - 1,000 insertions: multiple leaf splits, multiple internal splits, root splitting (tree height > 2), exact lookups for all 1,000 keys, full ascending scan verification.
+    - Node splitting: leaf splits with bidirectional sibling link maintenance, internal node splitting with middle-key push-up.
+    - Root creation and root splitting: verified dynamic root page ID tracking.
+    - Range scans: bounded ranges, open-ended scans, and cross-leaf boundary traversals.
+    - `CREATE INDEX` integration: `CREATE INDEX idx_name ON table(col);` via SQL, populating index with existing table tuples and maintaining index on subsequent inserts.
+    - Persistence across restart: full restart persistence verified bit-for-bit across process close and reopen with zero data loss.
+  * All 32 test cases (12,724 assertions) passed with zero errors.
+* **What was Implemented**:
+  * `IndexKey`: Fixed 128-byte trivially copyable POD structure for universal scalar keys (INTEGER, BIGINT, DOUBLE, BOOLEAN, VARCHAR up to 120 bytes) without dynamic heap pointers.
+  * `BPlusTreePage`: 32-byte base header layout on 4096-byte fixed page frames.
+  * `BPlusTreeLeafPage`: Leaf node layout storing sorted `(IndexKey, RID)` entries with bidirectional sibling pointers (`next_page_id`, `prev_page_id`).
+  * `BPlusTreeInternalPage`: Internal node layout storing child page IDs and routing keys.
+  * `BPlusTreeIndex`: Thread-safe B+ Tree engine orchestrating root creation, leaf navigation, node splitting, tree height growth, point lookups, and range scans through `BufferPoolManager`.
+  * `IndexInfo` & `Catalog` integration: Schema catalog stores index metadata on page 0 alongside table schemas, with automatic root page ID tracking and reload on startup.
+  * `ExecutionEngine` integration: Completed `ExecuteCreateIndex` and wired index synchronization into `ExecuteInsert`.
+* **Build Command**: `cmake --build build --config Debug`
+* **Test Command**: `ctest --test-dir build --output-on-failure` & `.\build\bin\emberdb_tests.exe`
+* **Test Results**: 32 test cases, 12,724 assertions passed, 0 failures.
+

@@ -73,6 +73,47 @@ Status Catalog::PersistCatalog() {
         dest += tbl->GetSchema().GetSerializedSize();
     }
 
+    // Write index count
+    uint32_t index_count = static_cast<uint32_t>(index_names_.size());
+    std::memcpy(dest, &index_count, sizeof(index_count));
+    dest += sizeof(index_count);
+
+    for (const auto& iname : index_names_) {
+        const auto& idx_info = indexes_.at(iname);
+
+        uint16_t iname_len = static_cast<uint16_t>(iname.size());
+        std::memcpy(dest, &iname_len, sizeof(iname_len));
+        dest += sizeof(iname_len);
+        std::memcpy(dest, iname.data(), iname_len);
+        dest += iname_len;
+
+        const auto& tname = idx_info->GetTableName();
+        uint16_t tname_len = static_cast<uint16_t>(tname.size());
+        std::memcpy(dest, &tname_len, sizeof(tname_len));
+        dest += sizeof(tname_len);
+        std::memcpy(dest, tname.data(), tname_len);
+        dest += tname_len;
+
+        const auto& cname = idx_info->GetColumnName();
+        uint16_t cname_len = static_cast<uint16_t>(cname.size());
+        std::memcpy(dest, &cname_len, sizeof(cname_len));
+        dest += sizeof(cname_len);
+        std::memcpy(dest, cname.data(), cname_len);
+        dest += cname_len;
+
+        uint32_t col_idx = idx_info->GetColumnIdx();
+        std::memcpy(dest, &col_idx, sizeof(col_idx));
+        dest += sizeof(col_idx);
+
+        TypeId ktype = idx_info->GetKeyType();
+        std::memcpy(dest, &ktype, sizeof(ktype));
+        dest += sizeof(ktype);
+
+        page_id_t root_pid = idx_info->GetIndex()->GetRootPageId();
+        std::memcpy(dest, &root_pid, sizeof(root_pid));
+        dest += sizeof(root_pid);
+    }
+
     bpm_->UnpinPage(CATALOG_PAGE_ID, true);
     bpm_->FlushPage(CATALOG_PAGE_ID);
     return Status::OK();
@@ -98,6 +139,8 @@ Status Catalog::LoadCatalog() {
 
     tables_.clear();
     table_names_.clear();
+    indexes_.clear();
+    index_names_.clear();
 
     for (uint32_t i = 0; i < count; ++i) {
         uint16_t name_len = 0;
@@ -121,6 +164,54 @@ Status Catalog::LoadCatalog() {
         });
         tables_[name] = std::make_unique<Table>(name, std::move(schema), std::move(table_heap));
         table_names_.push_back(name);
+    }
+
+    // Load indexes if present in catalog page
+    if (src + sizeof(uint32_t) <= page->GetData() + PAGE_SIZE) {
+        uint32_t index_count = 0;
+        std::memcpy(&index_count, src, sizeof(index_count));
+        src += sizeof(index_count);
+
+        for (uint32_t i = 0; i < index_count; ++i) {
+            uint16_t iname_len = 0;
+            std::memcpy(&iname_len, src, sizeof(iname_len));
+            src += sizeof(iname_len);
+            std::string iname(src, iname_len);
+            src += iname_len;
+
+            uint16_t tname_len = 0;
+            std::memcpy(&tname_len, src, sizeof(tname_len));
+            src += sizeof(tname_len);
+            std::string tname(src, tname_len);
+            src += tname_len;
+
+            uint16_t cname_len = 0;
+            std::memcpy(&cname_len, src, sizeof(cname_len));
+            src += sizeof(cname_len);
+            std::string cname(src, cname_len);
+            src += cname_len;
+
+            uint32_t col_idx = 0;
+            std::memcpy(&col_idx, src, sizeof(col_idx));
+            src += sizeof(col_idx);
+
+            TypeId ktype = TypeId::INVALID;
+            std::memcpy(&ktype, src, sizeof(ktype));
+            src += sizeof(ktype);
+
+            page_id_t root_pid = INVALID_PAGE_ID;
+            std::memcpy(&root_pid, src, sizeof(root_pid));
+            src += sizeof(root_pid);
+
+            auto btree = std::make_unique<BPlusTreeIndex>(iname, bpm_, ktype, root_pid);
+            btree->SetOnRootPageChange([this](page_id_t) {
+                PersistCatalog();
+            });
+
+            auto idx_info = std::make_unique<IndexInfo>(iname, tname, cname, col_idx, ktype, std::move(btree));
+            indexes_[iname] = std::move(idx_info);
+            index_names_.push_back(iname);
+        }
     }
 
     bpm_->UnpinPage(CATALOG_PAGE_ID, false);
@@ -164,6 +255,66 @@ bool Catalog::HasTable(const std::string& name) const {
 
 std::vector<std::string> Catalog::GetAllTableNames() const {
     return table_names_;
+}
+
+Result<IndexInfo*> Catalog::CreateIndex(const std::string& index_name, const std::string& table_name, const std::string& column_name) {
+    if (HasIndex(index_name)) {
+        return Status::AlreadyExists("Index already exists: " + index_name);
+    }
+    Table* table = GetTable(table_name);
+    if (!table) {
+        return Status::NotFound("Table not found: " + table_name);
+    }
+    int col_idx = table->GetSchema().GetColIdx(column_name);
+    if (col_idx < 0) {
+        return Status::NotFound("Column not found in table schema: " + column_name);
+    }
+    TypeId key_type = table->GetSchema().GetColumn(static_cast<size_t>(col_idx)).GetType();
+
+    auto btree = std::make_unique<BPlusTreeIndex>(index_name, bpm_, key_type, INVALID_PAGE_ID);
+    btree->SetOnRootPageChange([this](page_id_t) {
+        PersistCatalog();
+    });
+
+    auto idx_info = std::make_unique<IndexInfo>(index_name, table_name, column_name, static_cast<uint32_t>(col_idx), key_type, std::move(btree));
+    IndexInfo* ptr = idx_info.get();
+
+    indexes_[index_name] = std::move(idx_info);
+    index_names_.push_back(index_name);
+
+    auto status = PersistCatalog();
+    if (!status.ok()) {
+        indexes_.erase(index_name);
+        index_names_.pop_back();
+        return status;
+    }
+
+    return ptr;
+}
+
+IndexInfo* Catalog::GetIndex(const std::string& index_name) const {
+    auto it = indexes_.find(index_name);
+    if (it == indexes_.end()) return nullptr;
+    return it->second.get();
+}
+
+std::vector<IndexInfo*> Catalog::GetTableIndexes(const std::string& table_name) const {
+    std::vector<IndexInfo*> res;
+    for (const auto& name : index_names_) {
+        auto* idx = indexes_.at(name).get();
+        if (idx->GetTableName() == table_name) {
+            res.push_back(idx);
+        }
+    }
+    return res;
+}
+
+bool Catalog::HasIndex(const std::string& index_name) const {
+    return indexes_.find(index_name) != indexes_.end();
+}
+
+std::vector<std::string> Catalog::GetAllIndexNames() const {
+    return index_names_;
 }
 
 } // namespace emberdb

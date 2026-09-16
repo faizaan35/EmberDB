@@ -25,6 +25,11 @@ add_library(emberdb_core STATIC
     execution/executor/filter_executor.cpp
     execution/executor/nested_loop_join_executor.cpp
     execution/executor/execution_engine.cpp
+    index/index_key.cpp
+    index/btree/b_plus_tree_page.cpp
+    index/btree/b_plus_tree_leaf_page.cpp
+    index/btree/b_plus_tree_internal_page.cpp
+    index/btree/b_plus_tree_index.cpp
 )
 
 target_include_directories(emberdb_core

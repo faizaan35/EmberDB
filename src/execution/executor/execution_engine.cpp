@@ -81,9 +81,27 @@ QueryResult ExecutionEngine::ExecuteDropTable(const DropTableStatement* stmt) {
 }
 
 QueryResult ExecutionEngine::ExecuteCreateIndex(const CreateIndexStatement* stmt) {
-    if (!catalog_->HasTable(stmt->GetTableName())) {
+    Table* table = catalog_->GetTable(stmt->GetTableName());
+    if (!table) {
         return QueryResult{false, "Table not found: " + stmt->GetTableName(), {}, {}, 0, 0.0};
     }
+
+    auto idx_res = catalog_->CreateIndex(stmt->GetIndexName(), stmt->GetTableName(), stmt->GetColumnName());
+    if (!idx_res.ok()) {
+        return QueryResult{false, idx_res.status().ToString(), {}, {}, 0, 0.0};
+    }
+    IndexInfo* idx_info = *idx_res;
+
+    // Populate index with existing rows
+    const Schema& schema = table->GetSchema();
+    uint32_t col_idx = idx_info->GetColumnIdx();
+
+    for (auto it = table->GetTableHeap()->Begin(); it != table->GetTableHeap()->End(); ++it) {
+        const Record& record = *it;
+        Value val = record.GetValue(schema, col_idx);
+        idx_info->GetIndex()->Insert(IndexKey(val), record.GetRID());
+    }
+
     return QueryResult{true, "", {}, {}, 0, 0.0};
 }
 
@@ -95,6 +113,7 @@ QueryResult ExecutionEngine::ExecuteInsert(const InsertStatement* stmt) {
 
     const Schema& schema = table->GetSchema();
     uint32_t rows_inserted = 0;
+    auto table_indexes = catalog_->GetTableIndexes(stmt->GetTableName());
 
     for (const auto& row_exprs : stmt->GetValues()) {
         std::vector<Value> row_values;
@@ -128,6 +147,13 @@ QueryResult ExecutionEngine::ExecuteInsert(const InsertStatement* stmt) {
         if (!status.ok()) {
             return QueryResult{false, status.ToString(), {}, {}, rows_inserted, 0.0};
         }
+
+        // Maintain indexes
+        for (auto* idx_info : table_indexes) {
+            Value val = record.GetValue(schema, idx_info->GetColumnIdx());
+            idx_info->GetIndex()->Insert(IndexKey(val), record.GetRID());
+        }
+
         ++rows_inserted;
     }
 
