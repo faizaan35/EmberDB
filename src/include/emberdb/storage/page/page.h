@@ -1,8 +1,8 @@
 #pragma once
 
 #include "emberdb/common/config.h"
+#include "emberdb/common/rw_latch.h"
 #include <cstring>
-#include <shared_mutex>
 
 namespace emberdb {
 
@@ -57,7 +57,7 @@ private:
     page_id_t page_id_{INVALID_PAGE_ID};
     int pin_count_{0};
     bool is_dirty_{false};
-    mutable std::shared_mutex rwlock_;
+    mutable ReaderWriterLatch rwlock_;
 };
 
 } // namespace emberdb

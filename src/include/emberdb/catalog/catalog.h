@@ -9,7 +9,7 @@
 #include <unordered_map>
 #include <memory>
 #include <vector>
-#include <shared_mutex>
+#include "emberdb/common/rw_latch.h"
 
 namespace emberdb {
 
@@ -55,7 +55,7 @@ private:
     std::vector<std::string> table_names_;
     std::unordered_map<std::string, std::unique_ptr<IndexInfo>> indexes_;
     std::vector<std::string> index_names_;
-    mutable std::shared_mutex catalog_latch_;
+    mutable ReaderWriterLatch catalog_latch_;
 };
 
 } // namespace emberdb

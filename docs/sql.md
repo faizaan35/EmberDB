@@ -1,110 +1,198 @@
-﻿# EmberDB SQL Specification
+# EmberDB SQL Specification & Grammar Reference
 
-EmberDB supports an intentional, clean subset of standard ANSI SQL tailored for relational systems engineering.
+EmberDB implements an expressive, typed subset of standard ANSI SQL tailored for systems engineering and relational database internals.
+
+---
 
 ## 1. Supported Data Types
 
-* `INT`: 32-bit signed integer.
-* `BIGINT`: 64-bit signed integer.
-* `DOUBLE`: 64-bit IEEE double-precision floating point.
-* `BOOLEAN`: 1-byte boolean (`TRUE` / `FALSE`).
-* `VARCHAR`: Variable-length UTF-8 encoded string.
+| Type Name | Storage Size | C++ Representation | Notes |
+|---|---|---|---|
+| `INT` / `INTEGER` | 4 bytes | `int32_t` | Signed 32-bit integer (-2,147,483,648 to +2,147,483,647) |
+| `BIGINT` | 8 bytes | `int64_t` | Signed 64-bit integer (-9,223,372,036,854,775,808 to +9,223,372,036,854,775,807) |
+| `DOUBLE` / `FLOAT` | 8 bytes | `double` | IEEE-754 double precision floating point |
+| `BOOLEAN` / `BOOL` | 1 byte | `bool` | `TRUE` or `FALSE` |
+| `VARCHAR` | Variable | `std::string` | Variable-length UTF-8 string with 2-byte length prefix |
+
+---
 
 ## 2. Data Definition Language (DDL)
 
-### Create Table
+### 2.1 CREATE TABLE
+Defines a new relational table schema within the persisted catalog.
 ```sql
 CREATE TABLE users (
     id INT,
     name VARCHAR,
-    age INT
+    age INT,
+    balance DOUBLE,
+    is_active BOOLEAN
 );
 ```
 
-### Drop Table
+### 2.2 DROP TABLE
+Removes table schema and metadata from the catalog and drops associated pages.
 ```sql
 DROP TABLE users;
 ```
 
-### Create Index
+### 2.3 CREATE INDEX
+Constructs a new secondary B+ Tree index on the specified column of an existing table.
 ```sql
 CREATE INDEX idx_users_id ON users(id);
+CREATE INDEX idx_users_age ON users(age);
 ```
+
+---
 
 ## 3. Data Manipulation Language (DML)
 
-### Insert
+### 3.1 INSERT INTO
+Inserts one or more rows into a relation.
 ```sql
-INSERT INTO users VALUES (1, 'Faizaan', 23);
-INSERT INTO users (id, name, age) VALUES (2, 'Ahmed', 24);
+-- Positional insertion (matching schema column sequence)
+INSERT INTO users VALUES (1, 'Faizaan', 23, 1500.50, TRUE);
+
+-- Explicit column name mapping
+INSERT INTO users (id, name, age) VALUES (2, 'Ahmed', 25);
 ```
 
-### Select
+### 3.2 SELECT
+Retrieves tuples with optional projection, filtering, sorting, and pagination.
 ```sql
--- All columns
+-- Full relation scan (all columns)
 SELECT * FROM users;
 
--- Specific projections
-SELECT id, name FROM users;
+-- Explicit projection list
+SELECT id, name, balance FROM users;
 
 -- Filtering with comparisons
-SELECT name FROM users WHERE age > 20;
+SELECT name, age FROM users WHERE age >= 21;
 
--- Ordering and limits
-SELECT * FROM users ORDER BY age DESC LIMIT 10;
+-- Multi-predicate Boolean logic (AND, OR, NOT)
+SELECT * FROM users WHERE age > 20 AND is_active = TRUE;
+
+-- Sorting (ASC default or DESC)
+SELECT * FROM users ORDER BY age DESC;
+
+-- Pagination with LIMIT
+SELECT * FROM users ORDER BY balance DESC LIMIT 5;
 ```
 
-### Update
+### 3.3 UPDATE
+Updates columns in-place for rows matching an optional `WHERE` predicate.
 ```sql
-UPDATE users SET age = 24 WHERE id = 1;
-UPDATE users SET age = 25, name = 'Updated' WHERE id = 1;
+-- Single assignment
+UPDATE users SET balance = balance + 100.0 WHERE id = 1;
+
+-- Multiple assignments
+UPDATE users SET age = 24, balance = 2000.0 WHERE id = 1;
 ```
 
-### Delete
+### 3.4 DELETE
+Removes matching tuples from the relation using slotted page tombstones.
 ```sql
-DELETE FROM users WHERE id = 1;
+-- Delete rows matching condition
+DELETE FROM users WHERE id = 2;
+
+-- Delete all rows from relation
 DELETE FROM users;
 ```
 
-## 4. Joins
+---
 
+## 4. Relational Joins
+
+EmberDB implements standard SQL joins using a Volcano-style Nested Loop Join algorithm.
+
+### 4.1 INNER JOIN
+Emits tuples matching the join predicate across both relations.
 ```sql
--- Inner Join
 SELECT users.name, orders.amount
 FROM users
 INNER JOIN orders
-ON users.id = orders.user_id;
-
--- Left Outer Join
-SELECT users.name, orders.amount
-FROM users
-LEFT JOIN orders
-ON users.id = orders.user_id;
+ON users.id = orders.user_id
+WHERE orders.amount > 500.0;
 ```
 
-## 5. Aggregations & Grouping
-
+### 4.2 LEFT JOIN (Outer Join)
+Emits all matching tuples, plus unmatched outer (left) tuples padded with `NULL` for inner attributes.
 ```sql
-SELECT COUNT(*) FROM users;
-SELECT AVG(age), MIN(age), MAX(age), SUM(age) FROM users;
+SELECT departments.dept_name, employees.emp_name
+FROM departments
+LEFT JOIN employees
+ON departments.dept_id = employees.dept_id
+ORDER BY departments.dept_id;
+```
 
+---
+
+## 5. Aggregations and GROUP BY
+
+EmberDB supports relational aggregations with optional group partitioning:
+
+* `COUNT(*)` / `COUNT(column)`: Row count.
+* `SUM(column)`: Arithmetic sum of column values.
+* `AVG(column)`: Mean average of column values.
+* `MIN(column)`: Minimum column value.
+* `MAX(column)`: Maximum column value.
+
+### Examples:
+```sql
+-- Global scalar aggregations
+SELECT COUNT(*), AVG(age), MIN(balance), MAX(balance) FROM users;
+
+-- Grouped aggregations with GROUP BY
 SELECT age, COUNT(*)
 FROM users
 GROUP BY age
 ORDER BY age DESC;
+
+-- Grouped aggregation over joined relations
+SELECT departments.dept_name, COUNT(*), AVG(employees.salary)
+FROM employees
+INNER JOIN departments ON employees.dept_id = departments.dept_id
+GROUP BY departments.dept_name
+ORDER BY departments.dept_name;
 ```
+
+---
 
 ## 6. Transactions
 
+EmberDB provides ACID transactions with undo logging and durability.
+
 ```sql
-BEGIN;
+-- Begin a transactional unit of work
+BEGIN;  -- or BEGIN TRANSACTION;
+
 UPDATE accounts SET balance = balance - 100 WHERE id = 1;
 UPDATE accounts SET balance = balance + 100 WHERE id = 2;
-COMMIT;
+
+-- Commit changes durably to WAL
+COMMIT; -- or COMMIT TRANSACTION;
 ```
 
 ```sql
+-- Abort and roll back modifications
 BEGIN;
 DELETE FROM users WHERE id = 10;
-ROLLBACK;
+
+-- Reverse mutations and revive deleted row
+ROLLBACK; -- or ROLLBACK TRANSACTION;
+```
+
+---
+
+## 7. Query Inspection (EXPLAIN)
+
+The `EXPLAIN` statement outputs the physical plan generated by the rule-based Query Planner without executing it:
+
+```sql
+EXPLAIN SELECT * FROM users WHERE id = 500;
+```
+Example Output:
+```text
+Projection: [*]
+  IndexScan: users (Index: idx_users_id, Key: 500)
 ```

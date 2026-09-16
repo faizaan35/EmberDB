@@ -14,7 +14,7 @@ Catalog::Catalog(DiskManager* disk_mgr)
       disk_mgr_(disk_mgr) {}
 
 Status Catalog::Init() {
-    std::unique_lock<std::shared_mutex> lock(catalog_latch_);
+    std::unique_lock<ReaderWriterLatch> lock(catalog_latch_);
     if (!disk_mgr_->IsOpen()) {
         return Status::IOError("Disk manager is not open");
     }
@@ -39,7 +39,7 @@ Status Catalog::Init() {
 }
 
 Status Catalog::PersistCatalog() {
-    std::unique_lock<std::shared_mutex> lock(catalog_latch_);
+    std::unique_lock<ReaderWriterLatch> lock(catalog_latch_);
     return PersistCatalogUnlocked();
 }
 
@@ -225,7 +225,7 @@ Status Catalog::LoadCatalog() {
 }
 
 Result<Table*> Catalog::CreateTable(const std::string& name, const Schema& schema) {
-    std::unique_lock<std::shared_mutex> lock(catalog_latch_);
+    std::unique_lock<ReaderWriterLatch> lock(catalog_latch_);
     if (tables_.find(name) != tables_.end()) {
         return Status::AlreadyExists("Table already exists: " + name);
     }
@@ -251,24 +251,24 @@ Result<Table*> Catalog::CreateTable(const std::string& name, const Schema& schem
 }
 
 Table* Catalog::GetTable(const std::string& name) const {
-    std::shared_lock<std::shared_mutex> lock(catalog_latch_);
+    std::shared_lock<ReaderWriterLatch> lock(catalog_latch_);
     auto it = tables_.find(name);
     if (it == tables_.end()) return nullptr;
     return it->second.get();
 }
 
 bool Catalog::HasTable(const std::string& name) const {
-    std::shared_lock<std::shared_mutex> lock(catalog_latch_);
+    std::shared_lock<ReaderWriterLatch> lock(catalog_latch_);
     return tables_.find(name) != tables_.end();
 }
 
 std::vector<std::string> Catalog::GetAllTableNames() const {
-    std::shared_lock<std::shared_mutex> lock(catalog_latch_);
+    std::shared_lock<ReaderWriterLatch> lock(catalog_latch_);
     return table_names_;
 }
 
 Result<IndexInfo*> Catalog::CreateIndex(const std::string& index_name, const std::string& table_name, const std::string& column_name) {
-    std::unique_lock<std::shared_mutex> lock(catalog_latch_);
+    std::unique_lock<ReaderWriterLatch> lock(catalog_latch_);
     if (indexes_.find(index_name) != indexes_.end()) {
         return Status::AlreadyExists("Index already exists: " + index_name);
     }
@@ -305,14 +305,14 @@ Result<IndexInfo*> Catalog::CreateIndex(const std::string& index_name, const std
 }
 
 IndexInfo* Catalog::GetIndex(const std::string& index_name) const {
-    std::shared_lock<std::shared_mutex> lock(catalog_latch_);
+    std::shared_lock<ReaderWriterLatch> lock(catalog_latch_);
     auto it = indexes_.find(index_name);
     if (it == indexes_.end()) return nullptr;
     return it->second.get();
 }
 
 std::vector<IndexInfo*> Catalog::GetTableIndexes(const std::string& table_name) const {
-    std::shared_lock<std::shared_mutex> lock(catalog_latch_);
+    std::shared_lock<ReaderWriterLatch> lock(catalog_latch_);
     std::vector<IndexInfo*> res;
     for (const auto& name : index_names_) {
         auto* idx = indexes_.at(name).get();
@@ -324,12 +324,12 @@ std::vector<IndexInfo*> Catalog::GetTableIndexes(const std::string& table_name) 
 }
 
 bool Catalog::HasIndex(const std::string& index_name) const {
-    std::shared_lock<std::shared_mutex> lock(catalog_latch_);
+    std::shared_lock<ReaderWriterLatch> lock(catalog_latch_);
     return indexes_.find(index_name) != indexes_.end();
 }
 
 std::vector<std::string> Catalog::GetAllIndexNames() const {
-    std::shared_lock<std::shared_mutex> lock(catalog_latch_);
+    std::shared_lock<ReaderWriterLatch> lock(catalog_latch_);
     return index_names_;
 }
 
