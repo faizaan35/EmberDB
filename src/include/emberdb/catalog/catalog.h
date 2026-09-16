@@ -28,6 +28,7 @@ public:
 
     // Table operations
     Result<Table*> CreateTable(const std::string& name, const Schema& schema);
+    Status DropTable(const std::string& name);
     Table* GetTable(const std::string& name) const;
     bool HasTable(const std::string& name) const;
     std::vector<std::string> GetAllTableNames() const;

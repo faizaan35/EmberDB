@@ -8,7 +8,7 @@ EmberDB implements an ACID transaction model and thread-safe concurrency control
 
 * **Atomicity**: All DML statements executed between `BEGIN` and `COMMIT` succeed together or fail together. If an error occurs or `ROLLBACK` is issued, all table mutations are reversed in reverse topological order, restoring original tuple states and cleaning up secondary index keys.
 * **Consistency**: Every transaction operates on well-formed schemas. Column types, nullability constraints, and catalog metadata are validated at statement parse and bind time.
-* **Isolation**: Concurrency control uses reader-writer latches across all shared structures (`Page`, `BufferPoolManager`, `Catalog`, `TableHeap`, `BPlusTreeIndex`), preventing data corruption, torn reads, and memory races.
+* **Isolation (Latch-Level Thread Safety / Read Uncommitted)**: Concurrency control uses reader-writer latches across all shared structures (`Page`, `BufferPoolManager`, `Catalog`, `TableHeap`, `BPlusTreeIndex`), preventing data corruption, torn reads/writes, and memory races. EmberDB does NOT implement a tuple-level Lock Manager (2-Phase Locking / 2PL) or Multi-Version Concurrency Control (MVCC); concurrent transactions execute at approximately Read Uncommitted isolation level.
 * **Durability**: Upon `COMMIT`, a `COMMIT` record is written to the WAL and synchronously flushed to disk (`LogManager::FlushLogBuffer()`), guaranteeing survival across sudden crashes.
 
 ---
@@ -84,3 +84,6 @@ The `Catalog` protects its internal metadata maps with `mutable std::shared_mute
 ### 4.3 TableHeap & Buffer Pool Synchronization
 * `TableHeap` insertion and update routines synchronize page allocation and record positioning using mutexes.
 * `BufferPoolManager` synchronizes frame table lookup, free list retrieval, and LRU replacer updates via thread-safe critical sections.
+ 
+### 4.4 Isolation Scope & Limitations
+EmberDB focuses on memory safety and race-free concurrent execution of database internals. Tuple-level locking (2PL), serializability graphs, deadlock detection, and snapshot isolation (MVCC) are omitted by design for this educational engine. Modifying operations are atomic per transaction via the in-memory undo log, but concurrent transactions can observe uncommitted changes in the buffer pool prior to commit.

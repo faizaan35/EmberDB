@@ -1,4 +1,4 @@
-﻿#include "emberdb/storage/record/record.h"
+#include "emberdb/storage/record/record.h"
 #include <stdexcept>
 
 namespace emberdb {
@@ -9,6 +9,12 @@ Record::Record(std::vector<Value> values, const Schema& schema) {
     }
 
     size_t col_count = schema.GetColumnCount();
+    for (size_t i = 0; i < col_count; ++i) {
+        if (!values[i].IsNull() && values[i].GetTypeId() != schema.GetColumn(i).GetType()) {
+            values[i] = values[i].CastAs(schema.GetColumn(i).GetType());
+        }
+    }
+
     size_t null_bitmap_size = (col_count + 7) / 8;
 
     // Calculate total size needed

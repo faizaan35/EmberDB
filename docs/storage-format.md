@@ -122,6 +122,9 @@ B+ Tree index pages also occupy 4096 bytes and share a common 24-byte B+ Tree he
 * **Internal Nodes**:
   - Store array of `(Key, PageId)` pairs plus an initial child pointer `value[0]`.
   - Used strictly for routing point lookups to leaf nodes.
+* **Deletion Semantics**:
+  - `BPlusTreeIndex::Remove()` deletes the entry from the leaf node and shifts elements left to maintain contiguous binary-search ordering.
+  - In accordance with the educational scope, index deletion does not implement sibling borrowing/coalescing underflow handling or tree-height shrinking.
 
 ---
 

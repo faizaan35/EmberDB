@@ -249,6 +249,19 @@ void HttpServer::RunServerLoop() {
     socket_t listen_sock = static_cast<socket_t>(server_socket_);
 
     while (is_running_.load()) {
+        fd_set read_fds;
+        FD_ZERO(&read_fds);
+        FD_SET(listen_sock, &read_fds);
+
+        timeval tv{};
+        tv.tv_sec = 0;
+        tv.tv_usec = 200000; // 200ms
+
+        int sel = select(static_cast<int>(listen_sock + 1), &read_fds, nullptr, nullptr, &tv);
+        if (sel <= 0) {
+            continue;
+        }
+
         sockaddr_in client_addr{};
 #ifdef _WIN32
         int client_len = sizeof(client_addr);
@@ -288,6 +301,11 @@ void HttpServer::RunServerLoop() {
             send(client, response.data(), static_cast<int>(response.size()), 0);
         }
 
+#ifdef _WIN32
+        shutdown(client, SD_SEND);
+#else
+        shutdown(client, SHUT_WR);
+#endif
         CloseSocketFd(client);
     }
 }

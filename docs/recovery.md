@@ -52,7 +52,7 @@ Log records are appended to an in-memory 64KB log buffer and flushed sequentiall
 
 ---
 
-## 3. Crash Recovery Algorithm (ARIES Protocol)
+## 3. Crash Recovery Algorithm (Educational ARIES-Style Approximation)
 
 When `EmberDBInstance::Open()` opens a database directory, it invokes `RecoveryManager::NeedsRecovery()`.
 
@@ -90,3 +90,9 @@ The recovery manager inspects the WAL file:
 * Flushes all recovered buffer pool pages to disk.
 * Appends a `CHECKPOINT_END` record to the WAL and flushes the log.
 * The database engine transitions cleanly to normal client operations.
+
+### 3.6 Educational Simplifications & Scope
+EmberDB's recovery subsystem is an educational implementation of the ARIES protocol:
+* **No Compensation Log Records (CLRs)**: Undone operations during the Undo pass are directly reversed via reverse DML on slotted pages and secondary indexes without generating CLR records.
+* **Tuple-Level Redo/Undo**: Redo and Undo operate on typed record representations rather than raw physiological byte diffs.
+* **DDL Persistence**: DDL operations (`CREATE TABLE`, `DROP TABLE`, `CREATE INDEX`) are written synchronously to the Catalog page rather than logged to the WAL.

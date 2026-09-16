@@ -5,13 +5,48 @@ namespace emberdb {
 
 Planner::Planner(Catalog* catalog) : catalog_(catalog) {}
 
+IndexKey Planner::GetMinKeyForType(TypeId type) {
+    switch (type) {
+        case TypeId::BOOLEAN:
+            return IndexKey(false);
+        case TypeId::INTEGER:
+            return IndexKey(std::numeric_limits<int32_t>::min());
+        case TypeId::BIGINT:
+            return IndexKey(std::numeric_limits<int64_t>::min());
+        case TypeId::DOUBLE:
+            return IndexKey(-std::numeric_limits<double>::infinity());
+        case TypeId::VARCHAR:
+            return IndexKey(std::string(""));
+        default:
+            return IndexKey(std::numeric_limits<int32_t>::min());
+    }
+}
+
+IndexKey Planner::GetMaxKeyForType(TypeId type) {
+    switch (type) {
+        case TypeId::BOOLEAN:
+            return IndexKey(true);
+        case TypeId::INTEGER:
+            return IndexKey(std::numeric_limits<int32_t>::max());
+        case TypeId::BIGINT:
+            return IndexKey(std::numeric_limits<int64_t>::max());
+        case TypeId::DOUBLE:
+            return IndexKey(std::numeric_limits<double>::infinity());
+        case TypeId::VARCHAR:
+            return IndexKey(std::string(MAX_VARCHAR_KEY_LEN, static_cast<char>(0xFF)));
+        default:
+            return IndexKey(std::numeric_limits<int32_t>::max());
+    }
+}
+
 bool Planner::ExtractSinglePredicate(const Expression* expr,
                                      Table* table,
                                      IndexInfo*& matched_idx,
                                      IndexScanType& scan_type,
                                      IndexKey& lookup_key,
                                      IndexKey& low_key,
-                                     IndexKey& high_key) {
+                                     IndexKey& high_key,
+                                     bool& is_strict) {
     if (!expr || expr->GetType() != ExpressionType::BINARY_OP) return false;
 
     const auto* bin_expr = dynamic_cast<const BinaryExpression*>(expr);
@@ -47,26 +82,42 @@ bool Planner::ExtractSinglePredicate(const Expression* expr,
     if (!target_idx) return false;
 
     matched_idx = target_idx;
+    TypeId key_type = target_idx->GetKeyType();
 
     if (op == BinaryOpType::EQUAL) {
         scan_type = IndexScanType::POINT_LOOKUP;
         lookup_key = IndexKey(literal_val);
+        is_strict = false;
         return true;
     }
 
-    if (op == BinaryOpType::GREATER_EQUAL || (op == BinaryOpType::GREATER_THAN && col_on_left) ||
-        (op == BinaryOpType::LESS_EQUAL && !col_on_left)) {
+    // Lower bound on column: col >= val or col > val
+    // If col on left: col >= val (inclusive), col > val (strict)
+    // If col on right: val <= col (inclusive), val < col (strict)
+    bool is_lower_bound = (col_on_left && (op == BinaryOpType::GREATER_EQUAL || op == BinaryOpType::GREATER_THAN)) ||
+                          (!col_on_left && (op == BinaryOpType::LESS_EQUAL || op == BinaryOpType::LESS_THAN));
+
+    if (is_lower_bound) {
         scan_type = IndexScanType::RANGE_SCAN;
         low_key = IndexKey(literal_val);
-        high_key = IndexKey(std::numeric_limits<int32_t>::max()); // Bounded in range scan
+        high_key = GetMaxKeyForType(key_type);
+        is_strict = (col_on_left && op == BinaryOpType::GREATER_THAN) ||
+                    (!col_on_left && op == BinaryOpType::LESS_THAN);
         return true;
     }
 
-    if (op == BinaryOpType::LESS_EQUAL || (op == BinaryOpType::LESS_THAN && col_on_left) ||
-        (op == BinaryOpType::GREATER_EQUAL && !col_on_left)) {
+    // Upper bound on column: col <= val or col < val
+    // If col on left: col <= val (inclusive), col < val (strict)
+    // If col on right: val >= col (inclusive), val > col (strict)
+    bool is_upper_bound = (col_on_left && (op == BinaryOpType::LESS_EQUAL || op == BinaryOpType::LESS_THAN)) ||
+                          (!col_on_left && (op == BinaryOpType::GREATER_EQUAL || op == BinaryOpType::GREATER_THAN));
+
+    if (is_upper_bound) {
         scan_type = IndexScanType::RANGE_SCAN;
-        low_key = IndexKey(std::numeric_limits<int32_t>::min());
+        low_key = GetMinKeyForType(key_type);
         high_key = IndexKey(literal_val);
+        is_strict = (col_on_left && op == BinaryOpType::LESS_THAN) ||
+                    (!col_on_left && op == BinaryOpType::GREATER_THAN);
         return true;
     }
 
@@ -78,9 +129,14 @@ Planner::IndexMatchResult Planner::TryMatchIndex(Table* table, const Expression*
     if (!where_clause) return res;
 
     // Direct single predicate
-    if (ExtractSinglePredicate(where_clause, table, res.index_info, res.scan_type, res.lookup_key, res.low_key, res.high_key)) {
+    bool is_strict = false;
+    if (ExtractSinglePredicate(where_clause, table, res.index_info, res.scan_type, res.lookup_key, res.low_key, res.high_key, is_strict)) {
         res.matched = true;
-        res.residual_filter = nullptr;
+        if (is_strict) {
+            res.residual_filter = where_clause->Clone();
+        } else {
+            res.residual_filter = nullptr;
+        }
         return res;
     }
 
@@ -91,13 +147,15 @@ Planner::IndexMatchResult Planner::TryMatchIndex(Table* table, const Expression*
             IndexInfo* left_idx = nullptr;
             IndexScanType left_scan = IndexScanType::POINT_LOOKUP;
             IndexKey left_lookup, left_low, left_high;
+            bool left_strict = false;
 
             IndexInfo* right_idx = nullptr;
             IndexScanType right_scan = IndexScanType::POINT_LOOKUP;
             IndexKey right_lookup, right_low, right_high;
+            bool right_strict = false;
 
-            bool left_matches = ExtractSinglePredicate(bin->GetLeft(), table, left_idx, left_scan, left_lookup, left_low, left_high);
-            bool right_matches = ExtractSinglePredicate(bin->GetRight(), table, right_idx, right_scan, right_lookup, right_low, right_high);
+            bool left_matches = ExtractSinglePredicate(bin->GetLeft(), table, left_idx, left_scan, left_lookup, left_low, left_high, left_strict);
+            bool right_matches = ExtractSinglePredicate(bin->GetRight(), table, right_idx, right_scan, right_lookup, right_low, right_high, right_strict);
 
             // Case: Both left and right form a range scan on the same index (e.g. id >= 10 AND id <= 50)
             if (left_matches && right_matches && left_idx == right_idx &&
@@ -105,13 +163,21 @@ Planner::IndexMatchResult Planner::TryMatchIndex(Table* table, const Expression*
                 res.matched = true;
                 res.index_info = left_idx;
                 res.scan_type = IndexScanType::RANGE_SCAN;
-                res.low_key = (left_low.type_id != TypeId::INVALID && !left_low.is_null && left_low > IndexKey(std::numeric_limits<int32_t>::min()))
+                TypeId ktype = left_idx->GetKeyType();
+                IndexKey min_key = GetMinKeyForType(ktype);
+                IndexKey max_key = GetMaxKeyForType(ktype);
+
+                res.low_key = (left_low.type_id != TypeId::INVALID && !left_low.is_null && left_low > min_key)
                                   ? left_low
                                   : right_low;
-                res.high_key = (right_high.type_id != TypeId::INVALID && !right_high.is_null && right_high < IndexKey(std::numeric_limits<int32_t>::max()))
+                res.high_key = (right_high.type_id != TypeId::INVALID && !right_high.is_null && right_high < max_key)
                                    ? right_high
                                    : left_high;
-                res.residual_filter = nullptr;
+                if (left_strict || right_strict) {
+                    res.residual_filter = where_clause->Clone();
+                } else {
+                    res.residual_filter = nullptr;
+                }
                 return res;
             }
 
@@ -122,7 +188,11 @@ Planner::IndexMatchResult Planner::TryMatchIndex(Table* table, const Expression*
                 res.lookup_key = left_lookup;
                 res.low_key = left_low;
                 res.high_key = left_high;
-                res.residual_filter = bin->GetRight()->Clone();
+                if (left_strict) {
+                    res.residual_filter = where_clause->Clone();
+                } else {
+                    res.residual_filter = bin->GetRight()->Clone();
+                }
                 return res;
             }
 
@@ -133,7 +203,11 @@ Planner::IndexMatchResult Planner::TryMatchIndex(Table* table, const Expression*
                 res.lookup_key = right_lookup;
                 res.low_key = right_low;
                 res.high_key = right_high;
-                res.residual_filter = bin->GetLeft()->Clone();
+                if (right_strict) {
+                    res.residual_filter = where_clause->Clone();
+                } else {
+                    res.residual_filter = bin->GetLeft()->Clone();
+                }
                 return res;
             }
         }

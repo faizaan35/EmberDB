@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "emberdb/common/config.h"
 #include <string>
@@ -104,6 +104,7 @@ public:
     }
 
     std::string ToString() const;
+    Value CastAs(TypeId target_type) const;
 
     // Serialization
     size_t GetSerializedSize() const;

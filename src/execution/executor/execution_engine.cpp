@@ -99,6 +99,10 @@ QueryResult ExecutionEngine::ExecuteDropTable(const DropTableStatement* stmt) {
     if (!catalog_->HasTable(stmt->GetTableName())) {
         return QueryResult{false, "Table not found: " + stmt->GetTableName(), {}, {}, 0, 0.0};
     }
+    auto status = catalog_->DropTable(stmt->GetTableName());
+    if (!status.ok()) {
+        return QueryResult{false, status.ToString(), {}, {}, 0, 0.0};
+    }
     return QueryResult{true, "", {}, {}, 0, 0.0};
 }
 

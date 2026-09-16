@@ -23,10 +23,10 @@ This document tracks progress across all implementation phases of **EmberDB** as
 | **Phase 12** | Write-Ahead Logging (WAL, LSN, Log Records) | **COMPLETE** | **PASSED** |
 | **Phase 13** | Crash Recovery (Redo, Undo, Checkpointing) | **COMPLETE** | **PASSED** |
 | **Phase 14** | CLI Polish (Interactive REPL, Meta Commands) | **COMPLETE** | **PASSED** |
-| **Phase 15** | HTTP API (C++ REST endpoints) | PENDING | NOT STARTED |
-| **Phase 16** | React Web Interface (SQL Console) | PENDING | NOT STARTED |
-| **Phase 17** | Integration + Final Hardening | PENDING | NOT STARTED |
-| **Phase 18** | Documentation + Interview Readiness | PENDING | NOT STARTED |
+| **Phase 15** | HTTP API (C++ REST endpoints) | **COMPLETE** | **PASSED** |
+| **Phase 16** | React Web Interface (SQL Console) | **COMPLETE** | **PASSED** |
+| **Phase 17** | Integration + Final Hardening | **COMPLETE** | **PASSED** |
+| **Phase 18** | Documentation + Interview Readiness | **COMPLETE** | **PASSED** |
 
 ---
 

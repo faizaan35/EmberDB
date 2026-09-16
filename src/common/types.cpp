@@ -1,4 +1,4 @@
-﻿#include "emberdb/common/types.h"
+#include "emberdb/common/types.h"
 
 namespace emberdb {
 
@@ -34,6 +34,95 @@ std::string Value::ToString() const {
             return std::get<std::string>(val_);
         default:
             return "UNKNOWN";
+    }
+}
+
+Value Value::CastAs(TypeId target_type) const {
+    if (is_null_) {
+        return Value::Null(target_type);
+    }
+    if (type_id_ == target_type) {
+        return *this;
+    }
+    switch (target_type) {
+        case TypeId::BOOLEAN: {
+            switch (type_id_) {
+                case TypeId::INTEGER:
+                    return Value(std::get<int32_t>(val_) != 0);
+                case TypeId::BIGINT:
+                    return Value(std::get<int64_t>(val_) != 0);
+                case TypeId::DOUBLE:
+                    return Value(std::get<double>(val_) != 0.0);
+                case TypeId::VARCHAR: {
+                    const auto& s = std::get<std::string>(val_);
+                    return Value(s == "true" || s == "1" || s == "TRUE" || s == "t");
+                }
+                default:
+                    return Value(false);
+            }
+        }
+        case TypeId::INTEGER: {
+            switch (type_id_) {
+                case TypeId::BOOLEAN:
+                    return Value(std::get<bool>(val_) ? 1 : 0);
+                case TypeId::BIGINT:
+                    return Value(static_cast<int32_t>(std::get<int64_t>(val_)));
+                case TypeId::DOUBLE:
+                    return Value(static_cast<int32_t>(std::get<double>(val_)));
+                case TypeId::VARCHAR: {
+                    try {
+                        return Value(std::stoi(std::get<std::string>(val_)));
+                    } catch (...) {
+                        return Value(0);
+                    }
+                }
+                default:
+                    return Value(0);
+            }
+        }
+        case TypeId::BIGINT: {
+            switch (type_id_) {
+                case TypeId::BOOLEAN:
+                    return Value(std::get<bool>(val_) ? 1LL : 0LL);
+                case TypeId::INTEGER:
+                    return Value(static_cast<int64_t>(std::get<int32_t>(val_)));
+                case TypeId::DOUBLE:
+                    return Value(static_cast<int64_t>(std::get<double>(val_)));
+                case TypeId::VARCHAR: {
+                    try {
+                        return Value(std::stoll(std::get<std::string>(val_)));
+                    } catch (...) {
+                        return Value(0LL);
+                    }
+                }
+                default:
+                    return Value(0LL);
+            }
+        }
+        case TypeId::DOUBLE: {
+            switch (type_id_) {
+                case TypeId::BOOLEAN:
+                    return Value(std::get<bool>(val_) ? 1.0 : 0.0);
+                case TypeId::INTEGER:
+                    return Value(static_cast<double>(std::get<int32_t>(val_)));
+                case TypeId::BIGINT:
+                    return Value(static_cast<double>(std::get<int64_t>(val_)));
+                case TypeId::VARCHAR: {
+                    try {
+                        return Value(std::stod(std::get<std::string>(val_)));
+                    } catch (...) {
+                        return Value(0.0);
+                    }
+                }
+                default:
+                    return Value(0.0);
+            }
+        }
+        case TypeId::VARCHAR: {
+            return Value(ToString());
+        }
+        default:
+            return *this;
     }
 }
 

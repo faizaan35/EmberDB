@@ -1,5 +1,6 @@
 #include "emberdb/catalog/catalog.h"
 #include <cstring>
+#include <algorithm>
 
 namespace emberdb {
 
@@ -248,6 +249,39 @@ Result<Table*> Catalog::CreateTable(const std::string& name, const Schema& schem
     }
 
     return table_ptr;
+}
+
+Status Catalog::DropTable(const std::string& name) {
+    std::unique_lock<ReaderWriterLatch> lock(catalog_latch_);
+    auto it = tables_.find(name);
+    if (it == tables_.end()) {
+        return Status::NotFound("Table not found: " + name);
+    }
+
+    // Remove any indexes associated with this table
+    std::vector<std::string> idx_to_remove;
+    for (const auto& iname : index_names_) {
+        auto idx_it = indexes_.find(iname);
+        if (idx_it != indexes_.end() && idx_it->second->GetTableName() == name) {
+            idx_to_remove.push_back(iname);
+        }
+    }
+    for (const auto& iname : idx_to_remove) {
+        indexes_.erase(iname);
+        auto pos = std::find(index_names_.begin(), index_names_.end(), iname);
+        if (pos != index_names_.end()) {
+            index_names_.erase(pos);
+        }
+    }
+
+    // Remove table from tables_ and table_names_
+    tables_.erase(it);
+    auto tpos = std::find(table_names_.begin(), table_names_.end(), name);
+    if (tpos != table_names_.end()) {
+        table_names_.erase(tpos);
+    }
+
+    return PersistCatalogUnlocked();
 }
 
 Table* Catalog::GetTable(const std::string& name) const {

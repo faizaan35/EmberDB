@@ -18,6 +18,9 @@ public:
 
     std::unique_ptr<AbstractPlanNode> PlanSelect(const SelectStatement* stmt);
 
+    static IndexKey GetMinKeyForType(TypeId type);
+    static IndexKey GetMaxKeyForType(TypeId type);
+
 private:
     struct IndexMatchResult {
         bool matched{false};
@@ -36,7 +39,8 @@ private:
                                 IndexScanType& scan_type,
                                 IndexKey& lookup_key,
                                 IndexKey& low_key,
-                                IndexKey& high_key);
+                                IndexKey& high_key,
+                                bool& is_strict);
 
     Catalog* catalog_;
 };

@@ -68,6 +68,7 @@ int main(int argc, char* argv[]) {
     std::cout << "Data directory: " << db_dir << std::endl;
     std::cout << "Press Ctrl+C to terminate." << std::endl;
     std::cout << "========================================" << std::endl;
+    std::cout.flush();
 
     while (!g_stop_requested.load()) {
         std::this_thread::sleep_for(std::chrono::milliseconds(200));

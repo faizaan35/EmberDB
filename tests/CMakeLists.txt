@@ -24,6 +24,7 @@ add_executable(emberdb_tests
     recovery/recovery_test.cpp
     server/api_test.cpp
     integration/system_integration_test.cpp
+    regression/correctness_regression_test.cpp
 )
 
 target_include_directories(emberdb_tests

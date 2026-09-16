@@ -256,6 +256,10 @@ bool SlottedPage::RedoInsert(const RID& rid, const Record& record) {
         if (GetFreeSpace() < needed_slots * sizeof(Slot) + rec_len) {
             return false;
         }
+        for (slot_id_t i = slot_count; i <= rid.slot_id; ++i) {
+            Slot empty_slot{0, 0};
+            SetSlot(i, empty_slot);
+        }
         SetSlotCount(static_cast<uint16_t>(rid.slot_id + 1));
     }
 
