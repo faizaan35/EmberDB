@@ -24,6 +24,7 @@ public:
 
     Status Open();
     Status Close();
+    void SimulateCrash();
     bool IsOpen() const { return is_open_; }
 
     QueryResult ExecuteQuery(const std::string& sql);

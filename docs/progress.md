@@ -327,5 +327,31 @@ This document tracks progress across all implementation phases of **EmberDB** as
   - Static asset serving within `HttpServer` (`src/server/http_server.cpp`) to serve the built Web UI directly from `web/dist`.
   - Phase 16 completion gate test suite in `tests/server/api_test.cpp`.
 * **Build Command**: `cd web ; npm run build` & `cmake --build build --config Debug`
-* **Test Command**: `ctest --test-dir build --output-on-failure` & `.\build\bin\emberdb_tests.exe`
 * **Test Results**: 52 test cases, 17,208 assertions passed, 0 failures.
+
+### Phase 17 — Integration + Final Hardening
+* **Status**: **COMPLETE**
+* **Completion Gate**: **PASSED**
+  * All Phase 17 gate scenarios verified:
+    - End-to-end multi-table relation tests with `departments` and `employees`:
+      * Secondary B+ tree indexes created and queried via index point-lookups.
+      * Multi-table `INNER JOIN` and `LEFT JOIN` queries combining predicates, projections, and `ORDER BY`.
+      * Aggregations with `GROUP BY` (`COUNT(*)`, etc.).
+      * Full database persistence verified across clean process shutdown and reopening.
+    - Crash recovery and ACID invariance under mixed workloads:
+      * Tested committed transactions + uncommitted active loser transactions surviving sudden unclean termination.
+      * RecoveryManager automatically performed ARIES-style analysis, redid committed changes, and undid uncommitted loser modifications (reversing inserts, restoring update before-images, and reviving deleted rows).
+      * Continued operations immediately resumed post-recovery without data corruption.
+    - High-concurrency multithreaded stress testing:
+      * 6 concurrent worker threads performing hundreds of simultaneous inserts and index point queries across shared buffer pool, catalog, table heap, and B+ tree indexes.
+      * Verified total tuple counts and zero data races, corruptions, or deadlocks.
+    - Multi-statement headless CLI execution:
+      * Enhanced CLI `-c` flag to parse and execute semicolon-delimited SQL batches non-interactively with tabular output.
+  * All 55 test cases (17,296 assertions) passed with zero errors.
+* **What was Implemented**:
+  - `tests/integration/system_integration_test.cpp`: System integration test suite covering multi-relation joins, indexing, restart persistence, crash recovery, and multithreaded stress testing.
+  - `EmberDBInstance::SimulateCrash()`: Method enabling controlled abrupt termination without writing clean shutdown markers to test ARIES recovery.
+  - Multi-statement batch execution in `src/main.cpp` for non-interactive scripting workflows.
+* **Build Command**: `cmake --build build --config Debug`
+* **Test Command**: `ctest --test-dir build --output-on-failure` & `.\build\bin\emberdb_tests.exe`
+* **Test Results**: 55 test cases, 17,296 assertions passed, 0 failures.

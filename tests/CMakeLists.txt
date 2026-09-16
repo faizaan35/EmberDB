@@ -23,6 +23,7 @@ add_executable(emberdb_tests
     recovery/wal_test.cpp
     recovery/recovery_test.cpp
     server/api_test.cpp
+    integration/system_integration_test.cpp
 )
 
 target_include_directories(emberdb_tests

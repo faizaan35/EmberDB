@@ -245,10 +245,41 @@ int main(int argc, char* argv[]) {
     }
 
     if (!one_shot_command.empty()) {
-        auto res = db.ExecuteQuery(one_shot_command);
-        std::cout << res.FormatAsTable();
+        std::vector<std::string> statements;
+        std::string current;
+        bool in_quotes = false;
+        char quote_char = '\0';
+        for (char c : one_shot_command) {
+            if ((c == '\'' || c == '"') && (quote_char == '\0' || quote_char == c)) {
+                in_quotes = !in_quotes;
+                quote_char = in_quotes ? c : '\0';
+            }
+            current += c;
+            if (c == ';' && !in_quotes) {
+                statements.push_back(current);
+                current.clear();
+            }
+        }
+        if (!current.empty() && current.find_first_not_of(" \t\r\n") != std::string::npos) {
+            statements.push_back(current);
+        }
+
+        bool all_ok = true;
+        for (const auto& stmt : statements) {
+            std::string trimmed = stmt;
+            while (!trimmed.empty() && (trimmed.front() == ' ' || trimmed.front() == '\t' || trimmed.front() == '\r' || trimmed.front() == '\n')) {
+                trimmed.erase(0, 1);
+            }
+            if (trimmed.empty()) continue;
+            auto res = db.ExecuteQuery(trimmed);
+            std::cout << res.FormatAsTable();
+            if (!res.success) {
+                all_ok = false;
+                break;
+            }
+        }
         db.Close();
-        return res.success ? 0 : 1;
+        return all_ok ? 0 : 1;
     }
 
     RunRepl(db);

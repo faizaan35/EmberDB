@@ -199,3 +199,20 @@
   - Server-side rendered HTML (e.g. templates): Less interactive and makes future frontend enhancements harder.
 * **Tradeoffs**: Requires a one-time `npm run build` during distribution to populate `web/dist`.
 
+---
+
+## ADR-017: End-to-End System Integration and Crash Resilience Hardening
+
+* **Context**: Individual subsystems (storage, catalog, planner, execution engine, transactions, WAL, recovery, server, CLI, UI) were verified through dedicated unit and integration tests. To validate that the entire system functions harmoniously under realistic and adversarial conditions, rigorous system integration testing and crash resilience verification are required.
+* **Decision**: Implement comprehensive system integration suites and programmatic crash simulation:
+  1. Multi-Relational Workloads: Verified that complex cross-table joins, secondary B+ tree index lookups, aggregations, groupings, projections, and filters behave consistently across database sessions and disk reopenings.
+  2. Programmatic Crash Simulation (`EmberDBInstance::SimulateCrash`): Added controlled abrupt termination that forces dirty pages and WAL to disk while explicitly omitting clean checkpoint records, allowing realistic automated verification of ARIES analysis, redo, and undo passes.
+  3. Concurrent Stress Validation: Concurrently executing multi-threaded readers and writers across all shared components under tight buffer pool constraints to prove absence of deadlocks, memory corruptions, and data races.
+  4. Multi-Statement Scripting: Extended CLI execution to parse and run semicolon-delimited SQL batches in headless mode for continuous integration and automated scripting.
+* **Why**:
+  - Validates that ACID invariants hold across unexpected process termination and high-concurrency pressure.
+  - Ensures seamless interoperability between top-level interfaces (CLI, HTTP API, React Web UI) and low-level disk persistence.
+* **Alternatives Considered**:
+  - Relying solely on isolated unit tests: Risks missing subtle inter-subsystem bugs such as latch contention, transaction undo log sequencing across index modifications, or catalog persistence ordering.
+* **Tradeoffs**: Minor addition to test execution duration (~0.4s).
+

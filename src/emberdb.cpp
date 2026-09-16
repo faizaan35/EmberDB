@@ -84,6 +84,35 @@ Status EmberDBInstance::Close() {
     return Status::OK();
 }
 
+void EmberDBInstance::SimulateCrash() {
+    if (!is_open_) {
+        return;
+    }
+
+    // Flush dirty buffer pool pages and WAL to disk without writing clean checkpoint marker
+    if (bpm_) {
+        bpm_->FlushAllPages();
+    }
+
+    if (log_mgr_) {
+        log_mgr_->FlushLogBuffer();
+        log_mgr_->Close();
+    }
+
+    if (disk_mgr_) {
+        disk_mgr_->Close();
+    }
+
+    engine_.reset();
+    recovery_mgr_.reset();
+    catalog_.reset();
+    log_mgr_.reset();
+    bpm_.reset();
+    disk_mgr_.reset();
+
+    is_open_ = false;
+}
+
 QueryResult EmberDBInstance::ExecuteQuery(const std::string& sql) {
     if (!is_open_) {
         return QueryResult{false, "Database is not open", {}, {}, 0, 0.0};
