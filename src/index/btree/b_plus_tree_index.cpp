@@ -125,6 +125,7 @@ bool BPlusTreeIndex::Insert(const IndexKey& key, const RID& rid) {
 }
 
 bool BPlusTreeIndex::Remove(const IndexKey& key, const RID& rid) {
+    std::lock_guard<std::mutex> lock(mutex_);
     if (IsEmpty()) return false;
 
     page_id_t leaf_pid = FindLeafPage(key);

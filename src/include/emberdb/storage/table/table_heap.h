@@ -6,6 +6,7 @@
 #include "emberdb/storage/record/record.h"
 #include <memory>
 #include <functional>
+#include <mutex>
 
 namespace emberdb {
 
@@ -43,6 +44,7 @@ private:
     page_id_t first_page_id_{INVALID_PAGE_ID};
     page_id_t last_page_id_{INVALID_PAGE_ID};
     std::function<void(page_id_t)> on_first_page_allocated_;
+    mutable std::mutex latch_;
 };
 
 /**

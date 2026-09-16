@@ -1,7 +1,8 @@
-﻿#pragma once
+#pragma once
 
 #include "emberdb/common/config.h"
 #include <cstring>
+#include <shared_mutex>
 
 namespace emberdb {
 
@@ -45,11 +46,18 @@ public:
     // Reset page contents
     void ResetMemory();
 
+    // RW Latches
+    void WLatch() { rwlock_.lock(); }
+    void WUnlatch() { rwlock_.unlock(); }
+    void RLatch() { rwlock_.lock_shared(); }
+    void RUnlatch() { rwlock_.unlock_shared(); }
+
 private:
     char data_[PAGE_SIZE];
     page_id_t page_id_{INVALID_PAGE_ID};
     int pin_count_{0};
     bool is_dirty_{false};
+    mutable std::shared_mutex rwlock_;
 };
 
 } // namespace emberdb

@@ -40,6 +40,7 @@ TableHeap::TableHeap(DiskManager* disk_mgr, page_id_t first_page_id)
 }
 
 Status TableHeap::InsertRecord(Record& record) {
+    std::lock_guard<std::mutex> lock(latch_);
     RID rid;
 
     // Case 1: First page does not exist yet
@@ -112,6 +113,7 @@ Status TableHeap::InsertRecord(Record& record) {
 }
 
 Status TableHeap::GetRecord(const RID& rid, Record& record) {
+    std::lock_guard<std::mutex> lock(latch_);
     if (!rid.IsValid()) {
         return Status::InvalidArgument("Invalid RID");
     }
@@ -133,6 +135,7 @@ Status TableHeap::GetRecord(const RID& rid, Record& record) {
 }
 
 Status TableHeap::UpdateRecord(const RID& rid, const Record& new_record) {
+    std::lock_guard<std::mutex> lock(latch_);
     if (!rid.IsValid()) {
         return Status::InvalidArgument("Invalid RID");
     }
@@ -154,6 +157,7 @@ Status TableHeap::UpdateRecord(const RID& rid, const Record& new_record) {
 }
 
 Status TableHeap::DeleteRecord(const RID& rid) {
+    std::lock_guard<std::mutex> lock(latch_);
     if (!rid.IsValid()) {
         return Status::InvalidArgument("Invalid RID");
     }
@@ -175,6 +179,7 @@ Status TableHeap::DeleteRecord(const RID& rid) {
 }
 
 Status TableHeap::RollbackDelete(const RID& rid, const Record& old_record) {
+    std::lock_guard<std::mutex> lock(latch_);
     if (!rid.IsValid()) {
         return Status::InvalidArgument("Invalid RID");
     }

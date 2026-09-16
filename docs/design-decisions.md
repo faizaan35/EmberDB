@@ -90,4 +90,25 @@
   * Direct WAL rollback without undo log: Requires WAL replay subsystem (Phase 12/13) before transactions can even function. The in-memory undo log provides immediate transaction atomicity while paving the way for WAL integration.
 * **Tradeoffs**: Active transaction undo logs reside in memory during transaction execution; very large uncommitted transactions require memory proportional to the number of modified records.
 
+---
+
+## ADR-011: Hierarchical Concurrency Control and Subsystem Synchronization
+
+* **Context**: Multiple worker threads, client sessions, and background flushing tasks access shared database subsystems simultaneously. Without explicit synchronization, data races, corrupted page directory tables, lost updates, and deadlocks occur.
+* **Decision**: Adopt a clear hierarchical synchronization strategy using ISO C++17 primitives:
+  1. `Page`: per-page reader-writer latch (`std::shared_mutex rwlock_`) providing `WLatch`/`RLatch` semantics for memory frame read/write isolation.
+  2. `BufferPoolManager`: dedicated frame allocation mutex (`std::mutex mutex_`) protecting the frame lookup hash table, free list, pin counts, and LRU replacer victim selection.
+  3. `Catalog`: shared mutex (`mutable std::shared_mutex catalog_latch_`) allowing multiple concurrent schema readers (`std::shared_lock`) while serializing catalog modifications (`std::unique_lock`). Reentrant deadlock during page-0 persistence is prevented via `PersistCatalogUnlocked()`.
+  4. `TableHeap`: table-level mutex (`mutable std::mutex latch_`) synchronizing page chaining, record insertion, and slotted page space allocation.
+  5. `BPlusTreeIndex`: index-level mutex (`mutable std::mutex mutex_`) synchronizing tree traversals, node splitting, key lookups, and range scans.
+  6. `TransactionManager`: internal mutex (`std::mutex latch_`) synchronizing transaction ID allocation and active transaction map state.
+* **Why**:
+  - Distributing synchronization across functional subsystems prevents a single global database lock bottleneck.
+  - Reader-writer locks on `Catalog` and `Page` maximize concurrency for read-heavy workloads (concurrent queries).
+* **Alternatives Considered**:
+  - Coarse-grained single global database lock: Trivial to implement, but serializes all operations and causes severe contention under concurrent workloads.
+  - Lock-free data structures: High complexity, difficult to maintain, and prone to subtle ABA and memory-ordering bugs.
+* **Tradeoffs**: Mutex acquisition overhead on critical paths; strict lock acquisition order must be maintained to avoid deadlocks.
+
+
 

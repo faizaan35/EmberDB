@@ -19,7 +19,7 @@ This document tracks progress across all implementation phases of **EmberDB** as
 | **Phase 8** | B+ Tree Index (Search, Insert, Split, Range Scan) | **COMPLETE** | **PASSED** |
 | **Phase 9** | Query Planner + Index Scan | **COMPLETE** | **PASSED** |
 | **Phase 10** | Transactions (BEGIN, COMMIT, ROLLBACK) | **COMPLETE** | **PASSED** |
-| **Phase 11** | Concurrency (Synchronization, Thread Safety) | PENDING | NOT STARTED |
+| **Phase 11** | Concurrency (Synchronization, Thread Safety) | **COMPLETE** | **PASSED** |
 | **Phase 12** | Write-Ahead Logging (WAL, LSN, Log Records) | PENDING | NOT STARTED |
 | **Phase 13** | Crash Recovery (Redo, Undo, Checkpointing) | PENDING | NOT STARTED |
 | **Phase 14** | CLI Polish (Interactive REPL, Meta Commands) | PENDING | NOT STARTED |
@@ -192,6 +192,27 @@ This document tracks progress across all implementation phases of **EmberDB** as
 * **Build Command**: `cmake --build build --config Debug`
 * **Test Command**: `ctest --test-dir build --output-on-failure` & `.\build\bin\emberdb_tests.exe`
 * **Test Results**: 35 test cases, 14,883 assertions passed, 0 failures.
+
+### Phase 11 — Concurrency
+* **Status**: **COMPLETE**
+* **Completion Gate**: **PASSED**
+  * All Phase 11 gate scenarios verified:
+    - Concurrent buffer pool operations: 8 worker threads concurrently fetching, modifying, unpinning, and evicting pages under small buffer pool constraints with zero corruption or data races.
+    - Concurrent table insertions & scans: 4 threads concurrently inserting 200 records into `TableHeap` with full tuple integrity.
+    - Concurrent catalog reader-writer synchronization: multiple concurrent reader threads inspecting schemas while writer threads create tables and indexes without races or deadlocks.
+    - Concurrent B+ tree index mutations: 4 threads concurrently inserting distinct keys into the same `BPlusTreeIndex` with real-time point-lookup verification and complete scan reachability.
+    - Concurrent transactions: multiple committing and aborting transaction worker threads running simultaneously, strictly isolating committed rows and ensuring zero leak of rolled-back rows.
+  * All 40 test cases (16,971 assertions) passed with zero errors.
+* **What was Implemented**:
+  * `Page` reader-writer latching: added `std::shared_mutex rwlock_` with `WLatch()`, `WUnlatch()`, `RLatch()`, and `RUnlatch()` methods.
+  * `Catalog` reader-writer synchronization: integrated `mutable std::shared_mutex catalog_latch_`, guarding reader operations with `std::shared_lock` and writer operations with `std::unique_lock`, with reentrancy avoidance via `PersistCatalogUnlocked()`.
+  * `TableHeap` synchronization: added `mutable std::mutex latch_` protecting record insertions, point-lookups, updates, deletions, and slotted page allocations.
+  * `BPlusTreeIndex` locking: locked `mutex_` across all public API methods (`GetValue`, `GetOneValue`, `Insert`, `Remove`, `ScanRange`, `ScanAll`).
+  * Concurrency test suite: implemented comprehensive multithreaded test cases in `tests/concurrency/concurrency_test.cpp`.
+* **Build Command**: `cmake --build build --config Debug`
+* **Test Command**: `ctest --test-dir build --output-on-failure` & `.\build\bin\emberdb_tests.exe`
+* **Test Results**: 40 test cases, 16,971 assertions passed, 0 failures.
+
 
 
 

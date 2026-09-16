@@ -9,6 +9,7 @@
 #include <unordered_map>
 #include <memory>
 #include <vector>
+#include <shared_mutex>
 
 namespace emberdb {
 
@@ -45,6 +46,7 @@ public:
 
 private:
     Status LoadCatalog();
+    Status PersistCatalogUnlocked();
 
     std::unique_ptr<BufferPoolManager> owned_bpm_;
     BufferPoolManager* bpm_;
@@ -53,6 +55,7 @@ private:
     std::vector<std::string> table_names_;
     std::unordered_map<std::string, std::unique_ptr<IndexInfo>> indexes_;
     std::vector<std::string> index_names_;
+    mutable std::shared_mutex catalog_latch_;
 };
 
 } // namespace emberdb

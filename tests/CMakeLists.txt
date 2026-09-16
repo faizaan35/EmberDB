@@ -19,6 +19,7 @@ add_executable(emberdb_tests
     index/index_persistence_test.cpp
     planner/planner_test.cpp
     transaction/transaction_test.cpp
+    concurrency/concurrency_test.cpp
 )
 
 target_include_directories(emberdb_tests
