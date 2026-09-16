@@ -127,6 +127,26 @@
   - Direct synchronous disk write on every log append: Degrades throughput due to excessive small I/O syscalls. An in-memory buffer with forced flush on commit and page flush provides high performance while guaranteeing ACID durability.
 * **Tradeoffs**: Memory overhead of 64KB log buffer and minor disk write amplification from WAL records.
 
+---
+
+## ADR-013: Crash Recovery with Unclean Shutdown Detection, Redo, and Undo Passes
+
+* **Context**: After a power outage, process abort, or operating system crash, the persistent database files may be in an inconsistent state: committed transactions might have had dirty pages still in memory (not flushed to disk), and uncommitted "loser" transactions might have written dirty pages to disk prior to the crash.
+* **Decision**: Implement `RecoveryManager` executing a three-pass ARIES-style algorithm:
+  1. Unclean Shutdown Detection: Clean shutdowns append a `CHECKPOINT_END` record to the WAL and flush all dirty pages. On startup, `RecoveryManager::NeedsRecovery()` scans the WAL; if the last record is not a clean checkpoint or if active transactions exist, recovery is triggered.
+  2. Analysis Pass: Scans the log from start to finish to reconstruct transaction states (`active_txns` vs `committed_txns`) and determine the highest LSN in the log.
+  3. Redo Pass ("Repeating History"): Iterates forward through all DML log records in ascending LSN order. If a page's on-disk LSN is less than the log record LSN, the mutation (`INSERT`, `UPDATE`, `DELETE`) is re-applied to the `SlottedPage` and secondary indexes, bringing page state exactly to the crash point.
+  4. Undo Pass ("Rolling Back Losers"): Iterates backward through log records in reverse LSN order. Any mutations originating from active/uncommitted loser transactions are reversed (`DeleteRecord` for inserts, `UpdateRecord` with `before_image` for updates, `RollbackDelete` for deletes). An `ABORT` record is written for each loser transaction.
+  5. Post-Recovery Stabilization: Flushes all recovered pages and records a new `CHECKPOINT_END` marker. The database then immediately accepts normal client traffic.
+* **Why**:
+  - The repeating-history principle ensures that all intermediate physical page states are accurately rebuilt before rolling back uncommitted changes.
+  - Bidirectional index synchronization ensures secondary B+ tree indexes remain 100% consistent with table heaps across crashes.
+* **Alternatives Considered**:
+  - Shadow-paging recovery: High disk fragmentation and complicated multi-file management.
+  - Re-executing SQL text: Non-deterministic and unable to preserve physical record identifiers (RIDs) and secondary index linkages.
+* **Tradeoffs**: Recovery time scales with the number of log records since the last checkpoint.
+
+
 
 
 

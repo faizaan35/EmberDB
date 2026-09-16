@@ -44,6 +44,7 @@ public:
     bool UpdateRecord(const RID& rid, const Record& new_record);
     bool DeleteRecord(const RID& rid);
     bool RollbackDelete(const RID& rid, const Record& old_record);
+    bool RedoInsert(const RID& rid, const Record& record);
 
     Slot GetSlot(slot_id_t slot_id) const;
 

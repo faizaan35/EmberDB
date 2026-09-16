@@ -238,4 +238,41 @@ bool SlottedPage::RollbackDelete(const RID& rid, const Record& old_record) {
     return true;
 }
 
+bool SlottedPage::RedoInsert(const RID& rid, const Record& record) {
+    if (rid.page_id != GetPageId()) return false;
+    uint32_t rec_len = record.GetLength();
+    if (rec_len == 0 || rec_len > PAGE_SIZE - PAGE_HEADER_SIZE - sizeof(Slot)) {
+        return false;
+    }
+
+    uint16_t slot_count = GetSlotCount();
+    if (rid.slot_id < slot_count) {
+        Slot s = GetSlot(rid.slot_id);
+        if (s.size != 0) {
+            return UpdateRecord(rid, record);
+        }
+    } else {
+        uint16_t needed_slots = static_cast<uint16_t>(rid.slot_id + 1 - slot_count);
+        if (GetFreeSpace() < needed_slots * sizeof(Slot) + rec_len) {
+            return false;
+        }
+        SetSlotCount(static_cast<uint16_t>(rid.slot_id + 1));
+    }
+
+    if (GetFreeSpace() < rec_len) {
+        return false;
+    }
+
+    uint16_t free_ptr = GetFreeSpacePointer();
+    uint16_t new_offset = static_cast<uint16_t>(free_ptr - rec_len);
+    std::memcpy(data_ + new_offset, record.GetData(), rec_len);
+    SetFreeSpacePointer(new_offset);
+
+    Slot s;
+    s.offset = new_offset;
+    s.size = static_cast<uint16_t>(rec_len);
+    SetSlot(rid.slot_id, s);
+    return true;
+}
+
 } // namespace emberdb

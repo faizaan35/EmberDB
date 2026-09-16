@@ -37,6 +37,8 @@ add_library(emberdb_core STATIC
     transaction/transaction_manager.cpp
     recovery/log_record.cpp
     recovery/log_manager.cpp
+    recovery/recovery_manager.cpp
+    emberdb.cpp
 )
 
 target_include_directories(emberdb_core

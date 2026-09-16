@@ -21,7 +21,7 @@ This document tracks progress across all implementation phases of **EmberDB** as
 | **Phase 10** | Transactions (BEGIN, COMMIT, ROLLBACK) | **COMPLETE** | **PASSED** |
 | **Phase 11** | Concurrency (Synchronization, Thread Safety) | **COMPLETE** | **PASSED** |
 | **Phase 12** | Write-Ahead Logging (WAL, LSN, Log Records) | **COMPLETE** | **PASSED** |
-| **Phase 13** | Crash Recovery (Redo, Undo, Checkpointing) | PENDING | NOT STARTED |
+| **Phase 13** | Crash Recovery (Redo, Undo, Checkpointing) | **COMPLETE** | **PASSED** |
 | **Phase 14** | CLI Polish (Interactive REPL, Meta Commands) | PENDING | NOT STARTED |
 | **Phase 15** | HTTP API (C++ REST endpoints) | PENDING | NOT STARTED |
 | **Phase 16** | React Web Interface (SQL Console) | PENDING | NOT STARTED |
@@ -233,6 +233,26 @@ This document tracks progress across all implementation phases of **EmberDB** as
 * **Build Command**: `cmake --build build --config Debug`
 * **Test Command**: `ctest --test-dir build --output-on-failure` & `.\build\bin\emberdb_tests.exe`
 * **Test Results**: 45 test cases, 17,057 assertions passed, 0 failures.
+
+### Phase 13 — Crash Recovery
+* **Status**: **COMPLETE**
+* **Completion Gate**: **PASSED**
+  * All Phase 13 gate scenarios verified:
+    - Clean shutdown detection: clean sessions write `CHECKPOINT_END` and flush pages; subsequent startup confirms `NeedsRecovery() == false`.
+    - Unclean shutdown detection: active uncommitted transactions without clean checkpoint trigger `NeedsRecovery() == true`.
+    - Redo pass (repeating history): committed transactions that had not yet reached disk at the crash point are fully replayed into table heaps and secondary B+ tree indexes.
+    - Undo pass (rolling back losers): uncommitted/active transactions present at crash time are completely rolled back in reverse LSN order (insert deletion, before-image update restoration, and tombstone rollback deletion), restoring original table and index states.
+    - End-to-end continuous operation after recovery: immediate support for new queries (`INSERT`, `SELECT`, `UPDATE`) on top of recovered relations, followed by clean shutdown and bit-exact restart verification.
+  * All 49 test cases (17,144 assertions) passed with zero errors.
+* **What was Implemented**:
+  - `RecoveryManager`: Implements three-pass ARIES-style crash recovery (`AnalysisPass`, `RedoPass`, `UndoPass`) and `RecordCleanShutdown()`.
+  - `SlottedPage::RedoInsert`: Low-level slotted page slot expansion and tuple replay hook for bit-exact redo operations.
+  - `EmberDBInstance`: Unified top-level database engine class integrating `DiskManager`, `BufferPoolManager`, `Catalog`, `LogManager`, `RecoveryManager`, and `ExecutionEngine` with automated startup recovery and clean shutdown checkpoints.
+  - Comprehensive crash recovery test suite in `tests/recovery/recovery_test.cpp`.
+* **Build Command**: `cmake --build build --config Debug`
+* **Test Command**: `ctest --test-dir build --output-on-failure` & `.\build\bin\emberdb_tests.exe`
+* **Test Results**: 49 test cases, 17,144 assertions passed, 0 failures.
+
 
 
 
