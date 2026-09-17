@@ -435,14 +435,14 @@ export default function App() {
                 <span className="section-label">HISTORY ({history.length})</span>
                 {history.length > 0 && (
                   <button
-                    className="btn-icon-xs"
+                    className="btn-clear-history"
                     onClick={() => {
                       setHistory([]);
                       localStorage.removeItem('emberdb_query_history');
                     }}
                     title="Clear history"
                   >
-                    CLEAR
+                    Clear
                   </button>
                 )}
               </div>
