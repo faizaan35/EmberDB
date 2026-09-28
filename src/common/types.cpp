@@ -83,20 +83,20 @@ Value Value::CastAs(TypeId target_type) const {
         case TypeId::BIGINT: {
             switch (type_id_) {
                 case TypeId::BOOLEAN:
-                    return Value(std::get<bool>(val_) ? 1LL : 0LL);
+                    return Value(std::get<bool>(val_) ? static_cast<int64_t>(1) : static_cast<int64_t>(0));
                 case TypeId::INTEGER:
                     return Value(static_cast<int64_t>(std::get<int32_t>(val_)));
                 case TypeId::DOUBLE:
                     return Value(static_cast<int64_t>(std::get<double>(val_)));
                 case TypeId::VARCHAR: {
                     try {
-                        return Value(std::stoll(std::get<std::string>(val_)));
+                        return Value(static_cast<int64_t>(std::stoll(std::get<std::string>(val_))));
                     } catch (...) {
-                        return Value(0LL);
+                        return Value(static_cast<int64_t>(0));
                     }
                 }
                 default:
-                    return Value(0LL);
+                    return Value(static_cast<int64_t>(0));
             }
         }
         case TypeId::DOUBLE: {
