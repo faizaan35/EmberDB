@@ -5,6 +5,10 @@
 [![Testing](https://img.shields.io/badge/Tests-100%25%20Passed-brightgreen.svg)]()
 [![Web Console](https://img.shields.io/badge/Frontend-React%2018%20%2B%20Vite-61dafb.svg)](https://react.dev/)
 
+## 🚀 Live Demo
+
+👉 **[Try EmberDB Live](https://emberdb.onrender.com)**
+
 **EmberDB** is a lightweight, genuine relational database management system designed and implemented entirely from scratch in **C++17**.
 
 This is a systems-engineering project, **not** a wrapper around SQLite, PostgreSQL, DuckDB, RocksDB, or BerkeleyDB. EmberDB implements its own disk persistence, fixed-size slotted pages, buffer pool manager, B+ Tree indexing, SQL tokenizer & recursive-descent parser, Volcano-style physical execution engine, ACID transactions, Write-Ahead Logging (WAL), ARIES-style crash recovery, native HTTP REST server, and React web console.
