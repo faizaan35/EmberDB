@@ -1,0 +1,35 @@
+# Version control
+.git
+.gitignore
+
+# Build directories
+build/
+cmake-build-*/
+bin/
+out/
+
+# Database storage and runtime artifacts
+data/
+*.db
+*.wal
+*.log
+
+# Web dependencies and local builds
+web/node_modules/
+web/dist/
+web/.vite/
+
+# IDE and local editor files
+.vscode/
+.vs/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Operating system files
+.DS_Store
+Thumbs.db
+
+# Documentation and agent rules
+AGENTS.md
+docs/
