@@ -3,6 +3,9 @@
 #include "emberdb/server/http_server.h"
 #include <filesystem>
 #include <string>
+#include <thread>
+#include <chrono>
+#include <sstream>
 
 #ifdef _WIN32
     #include <winsock2.h>
@@ -168,6 +171,84 @@ TEST_CASE("HTTP API: Live TCP Socket Communication", "[api]") {
 
     REQUIRE(response.find("HTTP/1.1 200 OK") != std::string::npos);
     REQUIRE(response.find("\"status\":\"ok\"") != std::string::npos);
+
+#ifdef _WIN32
+    closesocket(client);
+    WSACleanup();
+#else
+    close(client);
+#endif
+
+    server.Stop();
+    REQUIRE_FALSE(server.IsRunning());
+
+    db.Close();
+    CleanupApiDir();
+}
+
+TEST_CASE("HTTP API: Live TCP Socket Split Headers and Body Regression", "[api]") {
+    CleanupApiDir();
+
+    EmberDBInstance db(TEST_API_DIR);
+    REQUIRE(db.Open().ok());
+
+    int test_port = 19125;
+    HttpServer server(&db, test_port);
+    auto start_st = server.Start(true);
+    REQUIRE(start_st.ok());
+    REQUIRE(server.IsRunning());
+
+#ifdef _WIN32
+    WSADATA wsa;
+    WSAStartup(MAKEWORD(2, 2), &wsa);
+#endif
+
+    sock_handle_t client = socket(AF_INET, SOCK_STREAM, 0);
+    REQUIRE(client != INVALID_SOCK);
+
+    sockaddr_in server_addr{};
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+    server_addr.sin_port = htons(static_cast<uint16_t>(test_port));
+
+    int conn_res = connect(client, reinterpret_cast<sockaddr*>(&server_addr), sizeof(server_addr));
+    REQUIRE(conn_res == 0);
+
+    // 1. Prepare query and body
+    std::string json_body = "{\"sql\":\"CREATE TABLE split_table (id INT, val VARCHAR);\"}";
+    std::ostringstream oss;
+    oss << "POST /api/query HTTP/1.1\r\n"
+        << "Host: 127.0.0.1\r\n"
+        << "Content-Type: application/json\r\n"
+        << "Content-Length: " << json_body.size() << "\r\n"
+        << "Connection: close\r\n\r\n";
+    std::string http_headers = oss.str();
+
+    // 2. Send HTTP headers FIRST
+    int sent_headers = send(client, http_headers.c_str(), static_cast<int>(http_headers.size()), 0);
+    REQUIRE(sent_headers == static_cast<int>(http_headers.size()));
+
+    // 3. Pause briefly to reproduce production reverse proxy behavior (headers sent before body)
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    // 4. Send JSON body AFTER the delay
+    int sent_body = send(client, json_body.c_str(), static_cast<int>(json_body.size()), 0);
+    REQUIRE(sent_body == static_cast<int>(json_body.size()));
+
+    // 5. Read response
+    std::vector<char> buffer(4096);
+    std::string response;
+    while (true) {
+        int received = recv(client, buffer.data(), static_cast<int>(buffer.size()) - 1, 0);
+        if (received <= 0) break;
+        buffer[received] = '\0';
+        response.append(buffer.data(), static_cast<size_t>(received));
+    }
+
+    // 6. Verify success and ensure "sql field missing" error is NOT present
+    REQUIRE(response.find("HTTP/1.1 200 OK") != std::string::npos);
+    REQUIRE(response.find("\"success\":true") != std::string::npos);
+    REQUIRE(response.find("Invalid request: 'sql' field missing in JSON body") == std::string::npos);
 
 #ifdef _WIN32
     closesocket(client);

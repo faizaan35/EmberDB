@@ -5,6 +5,8 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <algorithm>
+#include <cctype>
 
 #ifdef _WIN32
     #include <winsock2.h>
@@ -32,6 +34,29 @@ void CloseSocketFd(socket_t s) {
 #else
     close(s);
 #endif
+}
+
+size_t ParseContentLength(const std::string& headers) {
+    std::string lower_headers = headers;
+    for (char& c : lower_headers) {
+        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    }
+    size_t pos = lower_headers.find("content-length:");
+    if (pos == std::string::npos) {
+        return 0;
+    }
+    pos += 15; // length of "content-length:"
+    while (pos < headers.size() && (headers[pos] == ' ' || headers[pos] == '\t')) {
+        ++pos;
+    }
+    size_t end_pos = headers.find_first_of("\r\n", pos);
+    std::string len_str = (end_pos == std::string::npos) ? headers.substr(pos) : headers.substr(pos, end_pos - pos);
+    try {
+        long long len = std::stoll(len_str);
+        return (len > 0) ? static_cast<size_t>(len) : 0;
+    } catch (...) {
+        return 0;
+    }
 }
 
 std::string EscapeJsonString(const std::string& s) {
@@ -273,32 +298,87 @@ void HttpServer::RunServerLoop() {
             continue;
         }
 
-        std::vector<char> buffer(16384);
-        int bytes_read = recv(client, buffer.data(), static_cast<int>(buffer.size()) - 1, 0);
-        if (bytes_read > 0) {
-            buffer[bytes_read] = '\0';
-            std::string req_str(buffer.data(), bytes_read);
+        // Apply a receive timeout on client socket to prevent hanging on stalled connections
+#ifdef _WIN32
+        DWORD client_timeout = 3000; // 3 seconds timeout
+        setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char*>(&client_timeout), sizeof(client_timeout));
+#else
+        struct timeval client_tv;
+        client_tv.tv_sec = 3;
+        client_tv.tv_usec = 0;
+        setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, &client_tv, sizeof(client_tv));
+#endif
 
-            // Parse request line
+        std::string raw_data;
+        std::vector<char> chunk(4096);
+        size_t header_end = std::string::npos;
+        size_t header_delim_len = 0;
+
+        // 1. Read until complete HTTP header terminator is received (\r\n\r\n or \n\n)
+        while (raw_data.size() < 65536) { // 64KB max header size safeguard
+            header_end = raw_data.find("\r\n\r\n");
+            if (header_end != std::string::npos) {
+                header_delim_len = 4;
+                break;
+            }
+            header_end = raw_data.find("\n\n");
+            if (header_end != std::string::npos) {
+                header_delim_len = 2;
+                break;
+            }
+
+            int n = recv(client, chunk.data(), static_cast<int>(chunk.size()), 0);
+            if (n <= 0) {
+                break; // Socket closed, timed out, or error
+            }
+            raw_data.append(chunk.data(), static_cast<size_t>(n));
+        }
+
+        if (header_end != std::string::npos) {
+            std::string headers_str = raw_data.substr(0, header_end);
+            std::string body = raw_data.substr(header_end + header_delim_len);
+
+            // Parse request line (method, path)
             std::string method, path;
-            size_t first_space = req_str.find(' ');
+            size_t first_space = headers_str.find(' ');
             if (first_space != std::string::npos) {
-                method = req_str.substr(0, first_space);
-                size_t second_space = req_str.find(' ', first_space + 1);
+                method = headers_str.substr(0, first_space);
+                size_t second_space = headers_str.find(' ', first_space + 1);
                 if (second_space != std::string::npos) {
-                    path = req_str.substr(first_space + 1, second_space - first_space - 1);
+                    path = headers_str.substr(first_space + 1, second_space - first_space - 1);
                 }
             }
 
-            // Parse body
-            std::string body;
-            size_t header_end = req_str.find("\r\n\r\n");
-            if (header_end != std::string::npos) {
-                body = req_str.substr(header_end + 4);
+            // 2. Parse Content-Length header
+            size_t content_length = ParseContentLength(headers_str);
+
+            // 3. If Content-Length > 0, read remaining body bytes from socket
+            bool read_ok = true;
+            while (body.size() < content_length) {
+                size_t remaining = content_length - body.size();
+                size_t to_read = std::min(chunk.size(), remaining);
+                int n = recv(client, chunk.data(), static_cast<int>(to_read), 0);
+                if (n <= 0) {
+                    read_ok = false;
+                    break;
+                }
+                body.append(chunk.data(), static_cast<size_t>(n));
             }
 
-            std::string response = HandleRequest(method, path, body);
-            send(client, response.data(), static_cast<int>(response.size()), 0);
+            // Body larger than declared Content-Length: truncate to declared length
+            if (content_length > 0 && body.size() > content_length) {
+                body.resize(content_length);
+            }
+
+            // 4. Dispatch request
+            if (!read_ok) {
+                std::string err_resp = BuildHttpResponse(400, "Bad Request", "application/json",
+                    "{\"success\":false,\"error\":\"Client disconnected before complete request body was received\"}");
+                send(client, err_resp.data(), static_cast<int>(err_resp.size()), 0);
+            } else {
+                std::string response = HandleRequest(method, path, body);
+                send(client, response.data(), static_cast<int>(response.size()), 0);
+            }
         }
 
 #ifdef _WIN32
